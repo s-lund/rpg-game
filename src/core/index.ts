@@ -1,3 +1,51 @@
 /** Pure rules core — no three.js or DOM imports. */
 
-export const CORE_VERSION = "0.0.0-m0";
+export const CORE_VERSION = "0.1.0-m2";
+
+export type { Action } from "./actions/types";
+export { resolveAction, postActionEffects } from "./actions/resolve";
+
+export type { Effect } from "./effects/types";
+export { ALL_EFFECT_KINDS } from "./effects/types";
+export { apply, applyAll } from "./effects/apply";
+export type { ApplyContext, ApplyResult } from "./effects/apply";
+
+export { dispatch, replayEvents } from "./engine";
+export type { Session } from "./engine";
+
+export { createInitialState } from "./state";
+export { M1_DEMO_CONFIG, M2_DEMO_ENEMIES, M2_MAP_HEIGHT, M2_MAP_WIDTH } from "./scenarios/m1-demo";
+
+export type { CharacterDraft, PartyDraft, ValidationResult } from "./characters/types";
+export type { AbilityId, ClassId as CharacterClassId, SkillId } from "./characters/subset";
+export {
+  ABILITY_IDS,
+  M2_SUBSET,
+  fighterRules,
+  rogueRules,
+} from "./characters/subset";
+export {
+  abilityModifier,
+  abilityPointsRemaining,
+  abilityPointsSpent,
+  ABILITY_POINT_BUY,
+} from "./characters/abilities";
+export { validateCharacter, validateParty, createDefaultParty } from "./characters/validate";
+export { deriveEntityBlueprint, derivePartyBlueprints, buildEncounterConfig } from "./characters/derive";
+export { serializeParty, deserializeParty } from "./characters/serialize";
+
+export { isFlanking, effectiveAc } from "./combat/flanking";
+export { manhattanDistance, isAdjacent, isInBounds, isTileOccupied } from "./combat/grid";
+
+export type { Rng } from "./rng";
+export { createDefaultRng, createSeededRng } from "./rng";
+
+export type {
+  GameState,
+  GameEvent,
+  Entity,
+  CombatMeta,
+  ConditionId,
+  ClassId,
+  InitialStateConfig,
+} from "./types";

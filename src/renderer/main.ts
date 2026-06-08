@@ -1,7 +1,14 @@
 import * as THREE from "three";
+import { isAdjacent } from "../core/index";
+import type { InitialStateConfig } from "../core/index";
+import type { EntityId } from "../shared/ids";
 import { DevOverlay } from "./dev-overlay";
 import { loadManifest, summarizeManifest } from "./assets/load-manifest";
 import { ScenePresence } from "./scene-presence";
+import { CombatSession } from "./combat-session";
+import { CombatScene } from "./combat-scene";
+import { CombatHud } from "./combat-hud";
+import { CreationScreen } from "./creation-screen";
 
 const ISO_YAW = Math.PI / 4;
 const ISO_PITCH = Math.atan(1 / Math.sqrt(2));
@@ -31,53 +38,81 @@ function createIsometricCamera(width: number, height: number): THREE.Orthographi
   return camera;
 }
 
-function createGroundPlane(): THREE.Mesh {
-  const geometry = new THREE.PlaneGeometry(
-    GRID_SIZE * TILE_SIZE,
-    GRID_SIZE * TILE_SIZE,
-    GRID_SIZE,
-    GRID_SIZE,
-  );
-  geometry.rotateX(-Math.PI / 2);
-
-  const material = new THREE.MeshStandardMaterial({
-    color: 0x2a2e38,
-    roughness: 0.9,
-    metalness: 0.05,
-    wireframe: false,
-  });
-
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.receiveShadow = true;
-  return mesh;
-}
-
-function createTileGrid(): THREE.Group {
-  const group = new THREE.Group();
-  const half = (GRID_SIZE * TILE_SIZE) / 2;
-
-  for (let x = 0; x < GRID_SIZE; x++) {
-    for (let z = 0; z < GRID_SIZE; z++) {
-      const isLight = (x + z) % 2 === 0;
-      const tile = new THREE.Mesh(
-        new THREE.PlaneGeometry(TILE_SIZE * 0.98, TILE_SIZE * 0.98),
-        new THREE.MeshStandardMaterial({
-          color: isLight ? 0x3d4454 : 0x343a48,
-          roughness: 0.85,
-        }),
-      );
-      tile.rotation.x = -Math.PI / 2;
-      tile.position.set(
-        x * TILE_SIZE - half + TILE_SIZE / 2,
-        0.01,
-        z * TILE_SIZE - half + TILE_SIZE / 2,
-      );
-      tile.receiveShadow = true;
-      group.add(tile);
-    }
-  }
-
-  return group;
+function buildAcceptanceItems() {
+  return [
+    {
+      id: "create_party",
+      label: "Create named Fighter and Rogue",
+      proof: "visual" as const,
+      how: "fill names on Recruit your party screen, assign abilities/skills, Start Combat",
+    },
+    {
+      id: "party_on_grid",
+      label: "Created party on combat grid",
+      proof: "visual" as const,
+      how: "HUD shows your names with HP/AC/attack from creation choices",
+    },
+    {
+      id: "end_turn",
+      label: "End Turn button visible",
+      proof: "visual" as const,
+      how: "orange End Turn button in bottom-left HUD",
+    },
+    {
+      id: "move_party",
+      label: "Move Fighter and Rogue",
+      proof: "visual" as const,
+      how: "click a party box, then a destination tile within AP",
+    },
+    {
+      id: "strike",
+      label: "Strike reduces enemy HP",
+      proof: "visual" as const,
+      how: "select active character, click adjacent enemy; HUD shows HP drop",
+    },
+    {
+      id: "flanking",
+      label: "Flanking applies flat-footed",
+      proof: "overlay" as const,
+      how: "HUD enemy line shows [flat_footed] when flanked",
+    },
+    {
+      id: "victory",
+      label: "Finish the fight",
+      proof: "visual" as const,
+      how: "down all goblins — HUD shows Victory",
+    },
+    {
+      id: "m2_defaults_flagged",
+      label: "Fixed ancestry/background flagged",
+      proof: "overlay" as const,
+      how: "F3/~ overlay lists Human + default backgrounds as PROCEDURAL",
+    },
+    {
+      id: "party_roundtrip",
+      label: "Party round-trips through core",
+      proof: "test" as const,
+      how: "npm run test — party-roundtrip.test.ts",
+    },
+    {
+      id: "srd_validation",
+      label: "SRD character validation",
+      proof: "test" as const,
+      how: "npm run test — character-validation.test.ts",
+    },
+    {
+      id: "stateless_renderer",
+      label: "Renderer holds zero game state",
+      proof: "test" as const,
+      how: "npm run test — renderer-stateless.test.ts",
+    },
+    {
+      id: "pipeline_contract",
+      label: "Effect pipeline contract",
+      proof: "test" as const,
+      how: "npm run test — tests/contract/pipeline.test.ts",
+    },
+  ];
 }
 
 function init(): void {
@@ -90,50 +125,38 @@ function init(): void {
   const manifestSummary = summarizeManifest(manifest);
   const presence = new ScenePresence();
 
+  presence.registerProcedural("tile_grid", "checkerboard tiles — tile_floor GLB deferred to M8");
+  presence.registerProcedural("fighter_token", "blue box mesh — fighter_token GLB placeholder");
+  presence.registerProcedural("rogue_token", "blue box mesh — rogue_token not in manifest yet");
+  presence.registerProcedural("goblin_token", "green box mesh — goblin_token not in manifest yet");
   presence.registerProcedural(
-    "tile_grid",
-    "checkerboard on screen; tile_floor manifest entry not loaded yet",
+    "creation_screen",
+    "M2 character creation UI — real interface, not a mock",
   );
-  presence.registerManifestOnly(
-    "fighter_token",
-    "in manifest only — no mesh on scene until M1",
+  presence.registerProcedural(
+    "fixed_ancestry_human",
+    "Human ancestry fixed for M2 — not selectable on creation screen",
+  );
+  presence.registerProcedural(
+    "fixed_background_fighter",
+    "Warrior background fixed for Fighter slot — not selectable in M2",
+  );
+  presence.registerProcedural(
+    "fixed_background_rogue",
+    "Criminal background fixed for Rogue slot — not selectable in M2",
   );
   presence.registerManifestOnly(
     "tile_floor",
-    "manifest entry exists; scene uses procedural tile_grid instead",
+    "manifest entry exists; scene uses procedural tile_grid",
+  );
+  presence.registerManifestOnly(
+    "fighter_token",
+    "manifest lists box-blue.glb; scene uses procedural box",
   );
 
   const devOverlay = new DevOverlay(import.meta.env.DEV);
-  devOverlay.setState({
-    summary: manifestSummary,
-    presence,
-    acceptance: [
-      {
-        id: "iso_canvas",
-        label: "Isometric grid visible",
-        proof: "visual",
-        how: "dark checkerboard on black background",
-      },
-      {
-        id: "overlay_toggle",
-        label: "Dev overlay toggles",
-        proof: "visual",
-        how: "press F3 or ~ — this panel appears/disappears",
-      },
-      {
-        id: "fighter_token",
-        label: "fighter_token registered",
-        proof: "overlay",
-        how: "listed as MANIFEST ONLY above — not expected on screen in M0",
-      },
-      {
-        id: "tests",
-        label: "Automated checks",
-        proof: "test",
-        how: "npm run test — 6 tests pass",
-      },
-    ],
-  });
+  const acceptance = buildAcceptanceItems();
+  devOverlay.setState({ summary: manifestSummary, presence, acceptance });
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x0a0a0f);
@@ -143,6 +166,7 @@ function init(): void {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.domElement.style.display = "none";
   container.appendChild(renderer.domElement);
 
   let camera = createIsometricCamera(container.clientWidth, container.clientHeight);
@@ -156,8 +180,92 @@ function init(): void {
   sun.shadow.mapSize.set(1024, 1024);
   scene.add(sun);
 
-  scene.add(createGroundPlane());
-  scene.add(createTileGrid());
+  let combatSession: CombatSession | null = null;
+  let combatScene: CombatScene | null = null;
+  let combatHud: CombatHud | null = null;
+  let combatActive = false;
+
+  const pointer = new THREE.Vector2();
+
+  function refreshHudAndOverlay(): void {
+    if (!combatSession || !combatHud) return;
+    combatHud.update(combatSession.getState());
+    devOverlay.setState({ summary: manifestSummary, presence, acceptance: buildAcceptanceItems() });
+  }
+
+  function endTurn(): void {
+    if (!combatSession) return;
+    const state = combatSession.getState();
+    const activeId = state.combat.activeActorId;
+    if (!activeId || state.combat.phase !== "active") return;
+
+    const acted = combatSession.dispatch({
+      kind: "EndTurn",
+      actionId: `act_end_${Date.now()}`,
+      actorId: activeId,
+    });
+    if (acted) refreshHudAndOverlay();
+  }
+
+  function handlePointerClick(event: MouseEvent): void {
+    if (!combatActive || !combatSession || !combatScene) return;
+
+    const rect = renderer.domElement.getBoundingClientRect();
+    pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+    const pick = combatScene.pick(camera, pointer);
+    if (!pick) return;
+
+    const state = combatSession.getState();
+    const activeId = state.combat.activeActorId;
+
+    if (pick.kind === "entity") {
+      const entity = state.entities[pick.entityId as EntityId];
+      if (!entity || entity.downed) return;
+
+      if (entity.team === "party") {
+        combatScene.setSelectedEntity(pick.entityId);
+        return;
+      }
+
+      const selectedId = combatScene.getSelectedEntity();
+      if (!selectedId || selectedId !== activeId) return;
+
+      const actor = state.entities[selectedId as EntityId];
+      if (!actor || actor.team !== "party") return;
+      if (!isAdjacent(actor.x, actor.y, entity.x, entity.y)) return;
+
+      const acted = combatSession.dispatch({
+        kind: "Strike",
+        actionId: `act_strike_${Date.now()}`,
+        actorId: selectedId as typeof activeId & string,
+        targetId: pick.entityId as typeof activeId & string,
+      });
+      if (acted) refreshHudAndOverlay();
+      return;
+    }
+
+    const selectedId = combatScene.getSelectedEntity();
+    if (!selectedId || selectedId !== activeId) return;
+
+    const acted = combatSession.dispatch({
+      kind: "Step",
+      actionId: `act_step_${Date.now()}`,
+      actorId: selectedId as typeof activeId & string,
+      x: pick.x,
+      y: pick.y,
+    });
+    if (acted) refreshHudAndOverlay();
+  }
+
+  renderer.domElement.addEventListener("click", handlePointerClick);
+
+  window.addEventListener("keydown", (event) => {
+    if (event.key === "e" || event.key === "E") {
+      endTurn();
+    }
+  });
 
   function resize(): void {
     const width = container!.clientWidth;
@@ -171,14 +279,67 @@ function init(): void {
 
   function animate(): void {
     requestAnimationFrame(animate);
-    renderer.render(scene, camera);
+    if (combatActive) {
+      renderer.render(scene, camera);
+    }
   }
 
   animate();
 
+  function startCombat(config: InitialStateConfig): void {
+    creationScreen.hide();
+    renderer.domElement.style.display = "block";
+
+    combatSession = new CombatSession(config);
+    combatScene = new CombatScene({ gridSize: GRID_SIZE, tileSize: TILE_SIZE });
+    combatHud = new CombatHud(document.body);
+    combatHud.setOnEndTurn(endTurn);
+
+    combatScene.buildTiles(scene);
+    combatScene.buildEntityMeshes(scene, combatSession.getState());
+    combatScene.bootstrapFromState(combatSession.getState());
+    combatHud.update(combatSession.getState());
+    combatActive = true;
+    resize();
+
+    combatSession.subscribe((events) => {
+      combatScene!.onEvent(events);
+      refreshHudAndOverlay();
+
+      const turnStarted = events.find((e) => e.type === "TurnStarted");
+      if (turnStarted) {
+        const actorId = turnStarted.payload.entity_id as EntityId;
+        const actor = combatSession!.getState().entities[actorId];
+        if (actor?.team === "party") {
+          combatScene!.setSelectedEntity(actorId);
+        } else if (actor?.team === "enemy") {
+          window.setTimeout(() => endTurn(), 500);
+        }
+      }
+    });
+
+    const active = combatSession.getState().combat.activeActorId;
+    if (active) {
+      const actor = combatSession.getState().entities[active];
+      if (actor?.team === "party") {
+        combatScene.setSelectedEntity(active);
+      }
+    }
+
+    if (import.meta.env.DEV) {
+      (window as unknown as { __emberwatch: { session: CombatSession } }).__emberwatch = {
+        session: combatSession,
+      };
+    }
+  }
+
+  const creationScreen = new CreationScreen(document.body, {
+    onStartCombat: startCombat,
+  });
+
   if (import.meta.env.DEV) {
     console.info(
-      "[EMBERWATCH] M0 scaffold — press F3 or ~ to toggle dev overlay",
+      "[EMBERWATCH] M2 — create party, then F3/~ overlay; End Turn or E; click to move/strike",
       { manifestSummary },
     );
   }

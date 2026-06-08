@@ -5,6 +5,12 @@
     },
     "fighter_token": {
       "placeholder": "primitives/box-blue.glb"
+    },
+    "rogue_token": {
+      "placeholder": "primitives/box-purple.glb"
+    },
+    "goblin_token": {
+      "placeholder": "primitives/box-green.glb"
     }
   }
 }

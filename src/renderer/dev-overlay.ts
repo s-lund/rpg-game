@@ -127,7 +127,7 @@ export class DevOverlay {
       `total ${state.summary.total} · real ${state.summary.withReal} · placeholder ${state.summary.withPlaceholder}`,
     );
 
-    sections.push("", "<strong>Acceptance (M0)</strong>");
+    sections.push("", "<strong>Acceptance</strong>");
     for (const item of state.acceptance) {
       const tag = PROOF_LABEL[item.proof];
       const tagColor =

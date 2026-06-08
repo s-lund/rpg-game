@@ -21,10 +21,10 @@ describe("asset manifest", () => {
   it("summarizes placeholder vs real counts", () => {
     const summary = summarizeManifest(loadManifest());
 
-    expect(summary.total).toBe(2);
+    expect(summary.total).toBe(4);
     expect(summary.withReal).toBe(0);
-    expect(summary.withPlaceholder).toBe(2);
-    expect(summary.placeholderOnly).toBe(2);
+    expect(summary.withPlaceholder).toBe(4);
+    expect(summary.placeholderOnly).toBe(4);
   });
 
   it("rejects manifests missing assets", () => {

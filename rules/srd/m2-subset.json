@@ -1,0 +1,132 @@
+{
+  "version": "m2",
+  "source": "Pathfinder Player Core (ORC) — curated L1 Fighter/Rogue subset",
+  "abilityPointBuy": {
+    "baseScore": 10,
+    "pointPool": 18,
+    "minScore": 8,
+    "maxScore": 18,
+    "srdRef": "rules/srd/ability-scores.md"
+  },
+  "abilities": ["str", "dex", "con", "int", "wis", "cha"],
+  "skillLabels": {
+    "acrobatics": "Acrobatics",
+    "athletics": "Athletics",
+    "crafting": "Crafting",
+    "deception": "Deception",
+    "diplomacy": "Diplomacy",
+    "intimidation": "Intimidation",
+    "medicine": "Medicine",
+    "stealth": "Stealth",
+    "survival": "Survival",
+    "thievery": "Thievery"
+  },
+  "fixedAncestry": {
+    "id": "human",
+    "label": "Human (M2 default)",
+    "hpBonus": 0,
+    "srdRef": "rules/srd/ancestry-human.md"
+  },
+  "fixedBackground": {
+    "fighter": {
+      "id": "warrior",
+      "label": "Warrior (M2 default)",
+      "srdRef": "rules/srd/background-warrior.md"
+    },
+    "rogue": {
+      "id": "criminal",
+      "label": "Criminal (M2 default)",
+      "srdRef": "rules/srd/background-criminal.md"
+    }
+  },
+  "level": 1,
+  "proficiencyBonus": {
+    "untrained": 0,
+    "trained": 2,
+    "expert": 4,
+    "master": 6,
+    "legendary": 8
+  },
+  "classes": {
+    "fighter": {
+      "label": "Fighter",
+      "keyAbilities": ["str", "dex"],
+      "hpPerLevel": 10,
+      "attackProficiency": "expert",
+      "weaponAttackAbility": "str",
+      "defaultWeapon": {
+        "label": "longsword",
+        "damage": { "count": 1, "sides": 8 },
+        "damageAbility": "str"
+      },
+      "armor": {
+        "label": "chain_mail_shield",
+        "acBonus": 4,
+        "maxDexBonus": 1,
+        "shieldBonus": 2
+      },
+      "requiredSkillOptions": ["acrobatics", "athletics"],
+      "requiredSkillPick": 1,
+      "additionalSkillBase": 3,
+      "skillChoices": [
+        "acrobatics",
+        "athletics",
+        "crafting",
+        "intimidation",
+        "medicine",
+        "survival"
+      ],
+      "srdRef": "rules/srd/classes-fighter.md"
+    },
+    "rogue": {
+      "label": "Rogue",
+      "keyAbilities": ["dex"],
+      "hpPerLevel": 8,
+      "attackProficiency": "trained",
+      "weaponAttackAbility": "dex",
+      "defaultWeapon": {
+        "label": "shortsword",
+        "damage": { "count": 1, "sides": 6 },
+        "damageAbility": "dex"
+      },
+      "armor": {
+        "label": "leather_armor",
+        "acBonus": 2,
+        "maxDexBonus": 5,
+        "shieldBonus": 0
+      },
+      "mandatoryTrainedSkills": ["stealth"],
+      "additionalSkillBase": 7,
+      "skillChoices": [
+        "acrobatics",
+        "athletics",
+        "crafting",
+        "deception",
+        "diplomacy",
+        "intimidation",
+        "medicine",
+        "stealth",
+        "survival",
+        "thievery"
+      ],
+      "sneakAttack": { "count": 1, "sides": 6 },
+      "srdRef": "rules/srd/classes-rogue.md"
+    }
+  },
+  "partySlots": [
+    { "slotId": "slot_fighter", "classId": "fighter", "defaultEntityId": "ent_fighter_01", "spawn": { "x": 2, "y": 5 } },
+    { "slotId": "slot_rogue", "classId": "rogue", "defaultEntityId": "ent_rogue_01", "spawn": { "x": 3, "y": 5 } }
+  ],
+  "defaults": {
+    "fighter": {
+      "name": "Fighter",
+      "abilities": { "str": 18, "dex": 14, "con": 16, "int": 10, "wis": 12, "cha": 8 },
+      "trainedSkills": ["athletics", "intimidation", "medicine", "survival"]
+    },
+    "rogue": {
+      "name": "Rogue",
+      "abilities": { "str": 10, "dex": 18, "con": 14, "int": 12, "wis": 8, "cha": 16 },
+      "trainedSkills": ["stealth", "thievery", "deception", "acrobatics", "diplomacy", "intimidation", "athletics", "survival", "medicine"]
+    }
+  }
+}

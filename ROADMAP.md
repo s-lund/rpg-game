@@ -27,7 +27,7 @@ Milestones are sequential and each is a bounded loop target. Stack: TypeScript +
 
 ## M2 — Character creation *(new)*
 **Goal:** build the party instead of hardcoding it.
-- **You can try:** a screen to create a Fighter and a Rogue (assign stats/skills from the SRD subset), name them, and start the M1 combat map with the party you just made.
+- **You can try:** a screen to create a Fighter and a Rogue (distribute ability points and pick skills from the SRD subset), name them, and start the M1 combat map with the party you just made.
 - **Loop self-check:** created characters validate against SRD rules; the party round-trips through the core unchanged into combat.
 - **Stop signal:** "M2 done. Make a party, drop it into a fight."
 - **Model:** standard; premium only if validation rules get hairy.
@@ -62,9 +62,9 @@ Milestones are sequential and each is a bounded loop target. Stack: TypeScript +
 
 ## M7 — Breadth + the melee healer
 **Goal:** depth on the proven foundation.
-- **You can try:** more martial options, more enemy types, and the first scoped magic — your melee healer shielding and healing in a live fight, all running through the existing effect pipeline.
-- **Loop self-check:** each new action/effect ships with its contract test and rides the existing pipeline (no new mutation paths).
-- **Stop signal:** "M7 done. Play a fight using the healer and the new options."
+- **You can try:** more martial options, more enemy types, and the first scoped magic — your melee healer shielding and healing in a live fight, all running through the existing effect pipeline; **hover an enemy in combat** to see remaining HP, estimated hit chance, and damage range (from current stats, implicit class weapons, and AC — no equipment picker required).
+- **Loop self-check:** each new action/effect ships with its contract test and rides the existing pipeline (no new mutation paths); combat inspector values are computed in pure core from the same strike math the engine uses (headless tests for hit% and damage band).
+- **Stop signal:** "M7 done. Play a fight using the healer and the new options; hover a foe and read the combat breakdown."
 - **Model:** standard. *Candidate skills: `add-effect`, `add-action`.*
 
 ## M8 — Art pass (deferred on purpose)
