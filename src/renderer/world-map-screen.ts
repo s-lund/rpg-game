@@ -1,11 +1,17 @@
 import {
+  deriveEntityBlueprint,
   getNeighbors,
+  M2_SUBSET,
   type CampaignState,
   type SiteId,
   type WorldGraph,
   type WorldSite,
 } from "../core/index";
 import type { WorldMapSession } from "./world-map-session";
+
+export interface WorldMapScreenOptions {
+  onEnterSite?: () => void;
+}
 
 const SCREEN_ID = "emberwatch-world-map";
 const TRAVEL_MS = 2800;
@@ -29,11 +35,13 @@ export class WorldMapScreen {
   private readonly currentSiteEl: HTMLDivElement;
   private readonly routesEl: HTMLDivElement;
   private readonly partyEl: HTMLDivElement;
+  private readonly enterSiteEl: HTMLDivElement;
   private readonly errorEl: HTMLDivElement;
   private session: WorldMapSession | null = null;
   private graph: WorldGraph | null = null;
   private unsubscribe: (() => void) | null = null;
   private animating = false;
+  private onEnterSite: (() => void) | null = null;
   private siteButtons = new Map<SiteId, HTMLButtonElement>();
 
   constructor(container: HTMLElement) {
@@ -61,7 +69,7 @@ export class WorldMapScreen {
 
     const subtitle = document.createElement("p");
     subtitle.textContent =
-      "Click a reachable site on the map — your party token will travel there. (BG-style travel; combat in M4.)";
+      "Travel between sites, then enter the current location to fight. Click reachable sites to move your party token.";
     subtitle.style.cssText = "margin: 0 0 16px; max-width: 820px; color: #9a9080; text-align: center;";
     this.root.appendChild(subtitle);
 
@@ -80,13 +88,17 @@ export class WorldMapScreen {
       "flex: 1 1 520px",
       "max-width: 640px",
       "min-width: 280px",
+      "position: relative",
+      "aspect-ratio: 4 / 3",
+      "overflow: hidden",
+      "align-self: flex-start",
+      "isolation: isolate",
     ].join(";");
 
     this.mapSurface = document.createElement("div");
     this.mapSurface.style.cssText = [
-      "position: relative",
-      "width: 100%",
-      "aspect-ratio: 4 / 3",
+      "position: absolute",
+      "inset: 0",
       "border-radius: 10px",
       "overflow: hidden",
       "border: 2px solid rgba(120, 90, 50, 0.55)",
@@ -110,7 +122,7 @@ export class WorldMapScreen {
     this.mapSurface.appendChild(this.pathsSvg);
 
     this.sitesLayer = document.createElement("div");
-    this.sitesLayer.style.cssText = "position: absolute; inset: 0;";
+    this.sitesLayer.style.cssText = "position: absolute; inset: 0; pointer-events: none;";
     this.mapSurface.appendChild(this.sitesLayer);
 
     this.tokenEl = document.createElement("div");
@@ -145,6 +157,8 @@ export class WorldMapScreen {
       "display: flex",
       "flex-direction: column",
       "gap: 12px",
+      "position: relative",
+      "z-index: 30",
     ].join("; ");
 
     this.currentSiteEl = document.createElement("div");
@@ -155,6 +169,10 @@ export class WorldMapScreen {
       "border-radius: 8px",
     ].join("; ");
     sidebar.appendChild(this.currentSiteEl);
+
+    this.enterSiteEl = document.createElement("div");
+    this.enterSiteEl.style.cssText = "margin-bottom: 4px;";
+    sidebar.appendChild(this.enterSiteEl);
 
     const routesTitle = document.createElement("div");
     routesTitle.textContent = "Reachable from here";
@@ -190,10 +208,11 @@ export class WorldMapScreen {
     container.appendChild(this.root);
   }
 
-  bind(session: WorldMapSession, graph: WorldGraph): void {
+  bind(session: WorldMapSession, graph: WorldGraph, options?: WorldMapScreenOptions): void {
     this.unsubscribe?.();
     this.session = session;
     this.graph = graph;
+    this.onEnterSite = options?.onEnterSite ?? null;
     this.buildMapChrome(graph);
     this.unsubscribe = session.subscribe(() => this.refresh());
     this.refresh();
@@ -232,6 +251,7 @@ export class WorldMapScreen {
         "background: transparent",
         "cursor: default",
         "z-index: 10",
+        "pointer-events: auto",
       ].join("; ");
 
       const marker = document.createElement("span");
@@ -313,6 +333,25 @@ export class WorldMapScreen {
         : "",
     ].join("");
 
+    this.enterSiteEl.replaceChildren();
+    if (!this.animating && this.onEnterSite) {
+      const enterBtn = document.createElement("button");
+      enterBtn.type = "button";
+      enterBtn.textContent = "Enter site";
+      enterBtn.style.cssText = [
+        "cursor: pointer",
+        "width: 100%",
+        "padding: 10px 14px",
+        "border: 1px solid rgba(232, 160, 48, 0.65)",
+        "border-radius: 6px",
+        "background: rgba(180, 120, 30, 0.28)",
+        "color: #f0d890",
+        "font: 700 14px/1 ui-sans-serif, system-ui, sans-serif",
+      ].join("; ");
+      enterBtn.addEventListener("click", () => this.onEnterSite?.());
+      this.enterSiteEl.appendChild(enterBtn);
+    }
+
     this.routesEl.replaceChildren();
     if (neighbors.length === 0) {
       const none = document.createElement("p");
@@ -345,10 +384,12 @@ export class WorldMapScreen {
     }
 
     this.partyEl.innerHTML = state.party.members
-      .map(
-        (m) =>
-          `<div style='margin:3px 0'><strong style='color:#e8e4dc'>${escapeHtml(m.name)}</strong> · ${escapeHtml(m.classId)}</div>`,
-      )
+      .map((m) => {
+        const slot = M2_SUBSET.partySlots.find((s) => s.classId === m.classId);
+        const spawn = slot?.spawn ?? { x: 0, y: 0 };
+        const maxHp = deriveEntityBlueprint(m, spawn).maxHp;
+        return `<div style='margin:3px 0'><strong style='color:#e8e4dc'>${escapeHtml(m.name)}</strong> · ${escapeHtml(m.classId)} · <span style='color:#c9b890'>${m.currentHp}/${maxHp} HP</span></div>`;
+      })
       .join("");
   }
 

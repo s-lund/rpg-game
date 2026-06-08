@@ -130,6 +130,18 @@ export class CombatHud {
     this.element.appendChild(this.buttonEl);
   }
 
+  hide(): void {
+    this.element.style.display = "none";
+  }
+
+  show(): void {
+    this.element.style.display = "block";
+  }
+
+  destroy(): void {
+    this.element.remove();
+  }
+
   private renderEmpty(): void {
     this.element.textContent = "Loading combat…";
     this.element.appendChild(this.buttonEl);

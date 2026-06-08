@@ -13,7 +13,7 @@ function blueprintToEntity(blueprint: EntityBlueprint, team: Entity["team"]): En
     x: blueprint.x,
     y: blueprint.y,
     maxHp: blueprint.maxHp,
-    hp: blueprint.maxHp,
+    hp: blueprint.currentHp ?? blueprint.maxHp,
     ac: blueprint.ac,
     attackBonus: blueprint.attackBonus ?? (isRogue ? 7 : 8),
     damage: blueprint.damage ?? (isRogue ? { count: 1, sides: 6, modifier: 2 } : { count: 1, sides: 8, modifier: 4 }),

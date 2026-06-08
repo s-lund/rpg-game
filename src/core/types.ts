@@ -63,6 +63,8 @@ export interface EntityBlueprint {
   x: number;
   y: number;
   maxHp: number;
+  /** When set, combat starts at this HP instead of maxHp. */
+  currentHp?: number;
   ac: number;
   attackBonus?: number;
   damage?: { count: number; sides: number; modifier: number };

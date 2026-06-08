@@ -2,7 +2,7 @@
 
 export type { SiteId } from "../shared/ids";
 
-export const CORE_VERSION = "0.1.0-m3";
+export const CORE_VERSION = "0.1.0-m4";
 
 export type { Action } from "./actions/types";
 export { resolveAction, postActionEffects } from "./actions/resolve";
@@ -18,6 +18,7 @@ export type { Session } from "./engine";
 export { createInitialState } from "./state";
 export { M1_DEMO_CONFIG, M2_DEMO_ENEMIES, M2_MAP_HEIGHT, M2_MAP_WIDTH } from "./scenarios/m1-demo";
 export { M3_DEMO_GRAPH } from "./scenarios/m3-demo";
+export { M4_DEMO_ENCOUNTERS, type EncounterTemplate } from "./world/encounters";
 
 export type {
   WorldSite,
@@ -26,9 +27,15 @@ export type {
   CampaignState,
   TravelResult,
 } from "./world/types";
-export { validateWorldGraph, getNeighbors, loadWorldGraph } from "./world/validate";
+export {
+  validateWorldGraph,
+  validateWorldGraphEncounters,
+  getNeighbors,
+  loadWorldGraph,
+} from "./world/validate";
 export { createCampaignState, canTravelTo, travelTo } from "./world/travel";
 export { serializeCampaign, deserializeCampaign } from "./world/serialize";
+export { buildEncounterForSite, applyCombatResultToCampaign } from "./world/transition";
 
 export type { CharacterDraft, PartyDraft, ValidationResult } from "./characters/types";
 export type { AbilityId, ClassId as CharacterClassId, SkillId } from "./characters/subset";

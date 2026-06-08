@@ -2,8 +2,8 @@
 
 Build progress for EMBERWATCH. Milestone definitions live in `ROADMAP.md`.
 
-**Current milestone:** M4 (next)  
-**Last updated:** 2026-06-08 — M3 accepted
+**Current milestone:** M5 (next)  
+**Last updated:** 2026-06-08 — M4 accepted
 
 ---
 
@@ -15,7 +15,7 @@ Build progress for EMBERWATCH. Milestone definitions live in `ROADMAP.md`.
 | M1 Combat map: move + fight | **done** | pass | accepted |
 | M2 Character creation | **done** | pass | accepted |
 | M3 World map: travel | **done** | pass | accepted |
-| M4 World ↔ combat transition | pending | — | — |
+| M4 World ↔ combat transition | **done** | pass | accepted |
 | M5 Storytelling | pending | — | — |
 | M6 District generation | pending | — | — |
 | M7 Breadth + melee healer | pending | — | — |
@@ -63,10 +63,20 @@ Build progress for EMBERWATCH. Milestone definitions live in `ROADMAP.md`.
 
 ---
 
-## M4 — next
+## M4 — done (2026-06-08)
 
-**Goal:** world map ↔ combat map transition — one game, party state survives both directions.
+**Delivered:** Pure-core transition (`EncounterId`, `M4_DEMO_ENCOUNTERS`, `WorldSite.encounterId`, `CharacterDraft.currentHp`, `buildEncounterForSite`, `applyCombatResultToCampaign`, `validateWorldGraphEncounters`). Frozen `tests/contract/transition.test.ts`. Renderer: **Enter site** on overworld → site-specific combat with created party → victory returns to same site with HP persisted; defeat → Game Over screen (clears save on return to recruitment). `game-over-screen.ts`, `WorldMapSession.replaceState`, combat teardown via `combatHud.destroy()`. Map/sidebar z-index fix so Enter site button receives clicks.
 
-**Gate 1 targets:** transition contract test (party owned by core; correct encounter loads; combat end returns updated campaign state).
+**Gate 1:** `npm run test` (61 tests) — `transition.test.ts`, `world-transition.test.ts`; frozen `pipeline.test.ts` unchanged.
 
-**Gate 2:** enter a site from world map, fight, return to world map with HP carried over.
+**Gate 2:** Enter site, fight, return with HP carried over; Game Over on defeat; overlay PROCEDURAL flags; accepted.
+
+---
+
+## M5 — next
+
+**Goal:** narrator as a read-only consumer of the event log — atmospheric prose during play; scripted story beat at a site.
+
+**Gate 1 targets:** narrator contract test (consumes event log only; disabling narrator changes nothing mechanical).
+
+**Gate 2:** play and read narration; trigger scripted beat at a site.

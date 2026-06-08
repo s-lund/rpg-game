@@ -7,6 +7,8 @@ export interface CharacterDraft {
   classId: ClassId;
   abilities: Record<AbilityId, number>;
   trainedSkills: SkillId[];
+  /** Runtime HP carried across world↔combat transitions. */
+  currentHp: number;
 }
 
 export type PartyDraft = {

@@ -39,4 +39,11 @@ export class WorldMapSession {
     }
     return true;
   }
+
+  replaceState(state: CampaignState): void {
+    this.state = state;
+    for (const listener of this.listeners) {
+      listener(this.state);
+    }
+  }
 }

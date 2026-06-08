@@ -9,6 +9,7 @@ import {
 } from "./subset";
 import type { CharacterDraft, PartyDraft, ValidationResult } from "./types";
 import { abilityModifier, abilityPointsSpent, ABILITY_POINT_BUY } from "./abilities";
+import { deriveEntityBlueprint } from "./derive";
 
 const NAME_MIN = 1;
 const NAME_MAX = 32;
@@ -104,11 +105,27 @@ function validateSkills(draft: CharacterDraft): string[] {
   return errors;
 }
 
+function validateCurrentHp(draft: CharacterDraft): string[] {
+  const errors: string[] = [];
+  if (typeof draft.currentHp !== "number" || !Number.isFinite(draft.currentHp)) {
+    errors.push(`${draft.classId}: currentHp is required`);
+    return errors;
+  }
+  const slot = M2_SUBSET.partySlots.find((s) => s.classId === draft.classId);
+  const spawn = slot?.spawn ?? { x: 0, y: 0 };
+  const maxHp = deriveEntityBlueprint(draft, spawn).maxHp;
+  if (draft.currentHp < 0 || draft.currentHp > maxHp) {
+    errors.push(`${draft.classId}: currentHp must be between 0 and ${maxHp}`);
+  }
+  return errors;
+}
+
 export function validateCharacter(draft: CharacterDraft): ValidationResult {
   const errors: string[] = [
     ...validateName(draft.name, draft.classId),
     ...validateAbilities(draft.abilities, draft.classId),
     ...validateSkills(draft),
+    ...validateCurrentHp(draft),
   ];
   return fail(errors);
 }
@@ -145,13 +162,16 @@ export function createDefaultParty(): PartyDraft {
   const members = M2_SUBSET.partySlots.map((slot) => {
     const classId = slot.classId as ClassId;
     const defaults = M2_SUBSET.defaults[classId];
-    return {
+    const draft = {
       id: slot.defaultEntityId as EntityId,
       name: defaults.name,
       classId,
       abilities: { ...defaults.abilities },
       trainedSkills: [...(defaults.trainedSkills as SkillId[])],
+      currentHp: 0,
     } satisfies CharacterDraft;
+    const maxHp = deriveEntityBlueprint(draft, slot.spawn).maxHp;
+    return { ...draft, currentHp: maxHp };
   });
 
   return { members: members as [CharacterDraft, CharacterDraft] };

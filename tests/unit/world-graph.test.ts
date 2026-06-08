@@ -17,8 +17,8 @@ describe("world graph validation", () => {
     const graph: WorldGraph = {
       ...M3_DEMO_GRAPH,
       sites: [
-        { id: "site_cinder_gate", label: "A", tier: 1, mapX: 10, mapY: 10 },
-        { id: "site_cinder_gate", label: "B", tier: 1, mapX: 20, mapY: 20 },
+        { id: "site_cinder_gate", label: "A", tier: 1, encounterId: "enc_cinder_gate", mapX: 10, mapY: 10 },
+        { id: "site_cinder_gate", label: "B", tier: 1, encounterId: "enc_cinder_gate", mapX: 20, mapY: 20 },
       ],
     };
     const result = validateWorldGraph(graph);
@@ -71,7 +71,7 @@ describe("world graph validation", () => {
       ...M3_DEMO_GRAPH,
       sites: [
         ...M3_DEMO_GRAPH.sites,
-        { id: "site_island", label: "Lonely Isle", tier: 9, mapX: 90, mapY: 90 },
+        { id: "site_island", label: "Lonely Isle", tier: 9, encounterId: "enc_cinder_gate", mapX: 90, mapY: 90 },
       ],
     };
     const result = validateWorldGraph(graph);
@@ -85,9 +85,9 @@ describe("world graph validation", () => {
     const graph: WorldGraph = {
       id: "neighbor_test",
       sites: [
-        { id: "site_a", label: "A", tier: 1, mapX: 20, mapY: 50 },
-        { id: "site_b", label: "B", tier: 1, mapX: 50, mapY: 50 },
-        { id: "site_c", label: "C", tier: 1, mapX: 80, mapY: 50 },
+        { id: "site_a", label: "A", tier: 1, encounterId: "enc_cinder_gate", mapX: 20, mapY: 50 },
+        { id: "site_b", label: "B", tier: 1, encounterId: "enc_cinder_gate", mapX: 50, mapY: 50 },
+        { id: "site_c", label: "C", tier: 1, encounterId: "enc_cinder_gate", mapX: 80, mapY: 50 },
       ],
       edges: [
         { from: "site_a", to: "site_b", bidirectional: true },
@@ -115,7 +115,7 @@ describe("world graph validation", () => {
   it("rejects sites with missing or out-of-bounds map position", () => {
     const graph: WorldGraph = {
       ...M3_DEMO_GRAPH,
-      sites: [{ id: "site_cinder_gate", label: "Gate", tier: 1, mapX: 150, mapY: 50 }],
+      sites: [{ id: "site_cinder_gate", label: "Gate", tier: 1, encounterId: "enc_cinder_gate", mapX: 150, mapY: 50 }],
     };
     const result = validateWorldGraph(graph);
     expect(result.ok).toBe(false);

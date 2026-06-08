@@ -1,6 +1,8 @@
 import type { CampaignState } from "./types";
+import { deriveEntityBlueprint } from "../characters/derive";
+import { M2_SUBSET } from "../characters/subset";
 import { validateParty } from "../characters/validate";
-import type { PartyDraft } from "../characters/types";
+import type { CharacterDraft, PartyDraft } from "../characters/types";
 
 const CAMPAIGN_SCHEMA = "emberwatch.campaign" as const;
 const CAMPAIGN_VERSION = 1 as const;
@@ -36,14 +38,29 @@ export function deserializeCampaign(json: string): CampaignState {
     throw new Error("campaign party must contain exactly 2 members");
   }
 
-  const validation = validateParty(parsed.party);
+  const partyWithHp = ensurePartyHpFromSave(parsed.party);
+  const validation = validateParty(partyWithHp);
   if (!validation.ok) {
     throw new Error(validation.errors.join("; "));
   }
 
   return {
-    party: parsed.party,
+    party: partyWithHp,
     graphId: parsed.graphId,
     currentSiteId: parsed.currentSiteId,
   };
+}
+
+function ensurePartyHpFromSave(party: PartyDraft): PartyDraft {
+  const members = party.members.map((member) => {
+    const draft = member as CharacterDraft & { currentHp?: number };
+    if (typeof draft.currentHp === "number") {
+      return draft as CharacterDraft;
+    }
+    const slot = M2_SUBSET.partySlots.find((s) => s.classId === member.classId);
+    const spawn = slot?.spawn ?? { x: 0, y: 0 };
+    const maxHp = deriveEntityBlueprint({ ...member, currentHp: 0 }, spawn).maxHp;
+    return { ...member, currentHp: maxHp };
+  });
+  return { members: members as [CharacterDraft, CharacterDraft] };
 }

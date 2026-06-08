@@ -1,5 +1,6 @@
-import type { SiteId } from "../../shared/ids";
+import type { EncounterId, SiteId } from "../../shared/ids";
 import type { ValidationResult } from "../characters/types";
+import type { EncounterTemplate } from "./encounters";
 import type { WorldGraph } from "./types";
 
 export function validateWorldGraph(graph: WorldGraph): ValidationResult {
@@ -15,6 +16,10 @@ export function validateWorldGraph(graph: WorldGraph): ValidationResult {
       errors.push(`duplicate site id: ${site.id}`);
     }
     siteIds.add(site.id);
+
+    if (!site.encounterId || !site.encounterId.startsWith("enc_")) {
+      errors.push(`site ${site.id} missing valid encounterId`);
+    }
 
     if (typeof site.mapX !== "number" || typeof site.mapY !== "number") {
       errors.push(`site ${site.id} missing map position`);
@@ -82,6 +87,21 @@ export function getNeighbors(graph: WorldGraph, siteId: SiteId): SiteId[] {
   }
 
   return [...neighbors].sort();
+}
+
+export function validateWorldGraphEncounters(
+  graph: WorldGraph,
+  encounters: Record<EncounterId, EncounterTemplate>,
+): ValidationResult {
+  const errors: string[] = [];
+
+  for (const site of graph.sites) {
+    if (!encounters[site.encounterId]) {
+      errors.push(`site ${site.id} references unknown encounter: ${site.encounterId}`);
+    }
+  }
+
+  return errors.length === 0 ? { ok: true } : { ok: false, errors };
 }
 
 export function loadWorldGraph(raw: WorldGraph): WorldGraph {

@@ -40,6 +40,7 @@ export function deriveEntityBlueprint(
     x: spawn.x,
     y: spawn.y,
     maxHp,
+    currentHp: draft.currentHp,
     ac,
     attackBonus,
     damage: {

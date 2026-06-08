@@ -1,4 +1,6 @@
-import type { PartyDraft } from "./types";
+import { deriveEntityBlueprint } from "./derive";
+import { M2_SUBSET } from "./subset";
+import type { CharacterDraft, PartyDraft } from "./types";
 import { validateParty } from "./validate";
 
 const PARTY_SCHEMA = "emberwatch.party" as const;
@@ -27,10 +29,24 @@ export function deserializeParty(json: string): PartyDraft {
   if (!Array.isArray(parsed.members) || parsed.members.length !== 2) {
     throw new Error("party must contain exactly 2 members");
   }
-  const party: PartyDraft = { members: parsed.members };
+  const party = ensurePartyHpFromSave({ members: parsed.members });
   const validation = validateParty(party);
   if (!validation.ok) {
     throw new Error(validation.errors.join("; "));
   }
   return party;
+}
+
+function ensurePartyHpFromSave(party: PartyDraft): PartyDraft {
+  const members = party.members.map((member) => {
+    const draft = member as CharacterDraft & { currentHp?: number };
+    if (typeof draft.currentHp === "number") {
+      return draft as CharacterDraft;
+    }
+    const slot = M2_SUBSET.partySlots.find((s) => s.classId === member.classId);
+    const spawn = slot?.spawn ?? { x: 0, y: 0 };
+    const maxHp = deriveEntityBlueprint({ ...member, currentHp: 0 }, spawn).maxHp;
+    return { ...member, currentHp: maxHp };
+  });
+  return { members: members as [CharacterDraft, CharacterDraft] };
 }

@@ -1,10 +1,11 @@
-import type { SiteId } from "../../shared/ids";
+import type { EncounterId, SiteId } from "../../shared/ids";
 import type { PartyDraft } from "../characters/types";
 
 export interface WorldSite {
   id: SiteId;
   label: string;
   tier: number;
+  encounterId: EncounterId;
   /** Map position as percentage of overworld width (0–100). */
   mapX: number;
   /** Map position as percentage of overworld height (0–100). */

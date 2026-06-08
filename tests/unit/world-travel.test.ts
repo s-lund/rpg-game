@@ -1,4 +1,11 @@
 import { describe, expect, it } from "vitest";
+import {
+  apply,
+  applyCombatResultToCampaign,
+  buildEncounterForSite,
+  createInitialState,
+  M4_DEMO_ENCOUNTERS,
+} from "../../src/core/index";
 import { createDefaultParty } from "../../src/core/characters/validate";
 import { M3_DEMO_GRAPH } from "../../src/core/scenarios/m3-demo";
 import { deserializeCampaign, serializeCampaign } from "../../src/core/world/serialize";
@@ -8,6 +15,7 @@ import {
   travelTo,
 } from "../../src/core/world/travel";
 import { getNeighbors } from "../../src/core/world/validate";
+import type { EntityId } from "../../src/shared/ids";
 
 describe("world travel", () => {
   it("createCampaignState starts at graph startSiteId", () => {
@@ -15,7 +23,8 @@ describe("world travel", () => {
     const state = createCampaignState(party, M3_DEMO_GRAPH);
     expect(state.currentSiteId).toBe("site_cinder_gate");
     expect(state.graphId).toBe("m3_demo");
-    expect(state.party).toEqual(party);
+    expect(state.party.members[0].name).toBe(party.members[0].name);
+    expect(state.party.members[0].currentHp).toBeGreaterThan(0);
   });
 
   it("travelTo updates currentSiteId for valid neighbor", () => {
@@ -104,6 +113,29 @@ describe("world travel", () => {
     expect(() =>
       deserializeCampaign(JSON.stringify({ schema: "wrong", version: 1 })),
     ).toThrow();
+  });
+
+  it("serialize round-trip preserves currentHp after combat merge", () => {
+    const campaign = createCampaignState(createDefaultParty(), M3_DEMO_GRAPH);
+    let combat = createInitialState(
+      buildEncounterForSite(campaign, M3_DEMO_GRAPH, M4_DEMO_ENCOUNTERS),
+    );
+    const rogueId = campaign.party.members[1].id as EntityId;
+    const { state } = apply(
+      {
+        kind: "Damage",
+        effectId: "eff_travel_hp",
+        targetId: rogueId,
+        amount: 4,
+        damageType: "piercing",
+      },
+      combat,
+      { seq: 1, turn: 1, actorId: rogueId, actionId: "act_travel_hp" },
+    );
+    combat = state;
+    const merged = applyCombatResultToCampaign(campaign, combat);
+    const restored = deserializeCampaign(serializeCampaign(merged));
+    expect(restored.party.members[1].currentHp).toBe(combat.entities[rogueId]!.hp);
   });
 
   it("deserializeCampaign rejects invalid party", () => {

@@ -1,8 +1,11 @@
 import * as THREE from "three";
 import {
+  applyCombatResultToCampaign,
+  buildEncounterForSite,
   deserializeCampaign,
   isAdjacent,
   M3_DEMO_GRAPH,
+  M4_DEMO_ENCOUNTERS,
   serializeCampaign,
   type CampaignState,
   type InitialStateConfig,
@@ -17,6 +20,7 @@ import { CombatScene } from "./combat-scene";
 import { CombatHud } from "./combat-hud";
 import { CreationScreen } from "./creation-screen";
 import { WorldMapSession } from "./world-map-session";
+import { GameOverScreen } from "./game-over-screen";
 import { WorldMapScreen } from "./world-map-screen";
 
 const CAMPAIGN_STORAGE_KEY = "emberwatch.campaign";
@@ -83,9 +87,33 @@ function buildAcceptanceItems() {
     },
     {
       id: "party_on_grid",
-      label: "Created party on combat grid (M4)",
+      label: "Created party on combat grid from overworld",
       proof: "visual" as const,
-      how: "deferred — world↔combat transition is M4",
+      how: "travel to a site, click Enter site — your named party appears on the tactical grid",
+    },
+    {
+      id: "enter_site",
+      label: "Enter site from world map",
+      proof: "visual" as const,
+      how: "at a site (not traveling), click Enter site in sidebar — combat view replaces overworld",
+    },
+    {
+      id: "hp_carry_over",
+      label: "Party HP carries over after combat",
+      proof: "visual" as const,
+      how: "take damage in a fight, win, return to overworld — sidebar shows reduced HP",
+    },
+    {
+      id: "game_over_defeat",
+      label: "Defeat shows Game Over screen",
+      proof: "visual" as const,
+      how: "enter a site, let party fall — Game Over overlay (not overworld); Return to recruitment clears save",
+    },
+    {
+      id: "m4_procedural_flags",
+      label: "M4 mocks flagged in overlay",
+      proof: "overlay" as const,
+      how: "F3/~ lists enter_site_ui, site_encounter_mapping, game_over_screen as PROCEDURAL",
     },
     {
       id: "end_turn",
@@ -200,6 +228,18 @@ function init(): void {
     "world_map_token",
     "gold party token (⚔) — procedural marker, not a final asset",
   );
+  presence.registerProcedural(
+    "enter_site_ui",
+    "Enter site sidebar button — M4 procedural UI until final UX pass",
+  );
+  presence.registerProcedural(
+    "site_encounter_mapping",
+    "M4 demo site→encounter registry — tier-scaled goblin squads, not generated districts",
+  );
+  presence.registerProcedural(
+    "game_over_screen",
+    "M4 defeat Game Over overlay — procedural placeholder screen",
+  );
 
   const devOverlay = new DevOverlay(import.meta.env.DEV);
   const acceptance = buildAcceptanceItems();
@@ -232,7 +272,17 @@ function init(): void {
   let combatHud: CombatHud | null = null;
   let combatActive = false;
   let worldMapSession: WorldMapSession | null = null;
+  let combatEndedHandled = false;
   const worldMapScreen = new WorldMapScreen(document.body);
+  const gameOverScreen = new GameOverScreen(document.body, {
+    onReturnToCreation: () => {
+      localStorage.removeItem(CAMPAIGN_STORAGE_KEY);
+      gameOverScreen.hide();
+      worldMapScreen.hide();
+      creationScreen.show();
+      refreshWorldOverlay();
+    },
+  });
 
   function loadSavedCampaign(): CampaignState | null {
     try {
@@ -353,13 +403,112 @@ function init(): void {
 
   animate();
 
+  function teardownCombat(): void {
+    combatActive = false;
+    combatEndedHandled = false;
+    renderer.domElement.style.display = "none";
+    combatHud?.destroy();
+    combatSession = null;
+    combatScene = null;
+    combatHud = null;
+  }
+
+  function beginCombatSession(config: InitialStateConfig): void {
+    teardownCombat();
+    renderer.domElement.style.display = "block";
+
+    combatSession = new CombatSession(config);
+    combatScene = new CombatScene({ gridSize: GRID_SIZE, tileSize: TILE_SIZE });
+    combatHud = new CombatHud(document.body);
+    combatHud.show();
+    combatHud.setOnEndTurn(endTurn);
+
+    combatScene.buildTiles(scene);
+    combatScene.buildEntityMeshes(scene, combatSession.getState());
+    combatScene.bootstrapFromState(combatSession.getState());
+    combatHud.update(combatSession.getState());
+    combatActive = true;
+    resize();
+
+    combatSession.subscribe((events) => {
+      combatScene!.onEvent(events);
+      refreshHudAndOverlay();
+
+      const combatEnded = events.find((e) => e.type === "CombatEnded");
+      if (combatEnded && !combatEndedHandled) {
+        combatEndedHandled = true;
+        handleCombatEnded(
+          combatEnded.payload.outcome === "victory" ? "victory" : "defeat",
+        );
+        return;
+      }
+
+      const turnStarted = events.find((e) => e.type === "TurnStarted");
+      if (turnStarted) {
+        const actorId = turnStarted.payload.entity_id as EntityId;
+        const actor = combatSession!.getState().entities[actorId];
+        if (actor?.team === "party") {
+          combatScene!.setSelectedEntity(actorId);
+        } else if (actor?.team === "enemy") {
+          window.setTimeout(() => endTurn(), 500);
+        }
+      }
+    });
+
+    const active = combatSession.getState().combat.activeActorId;
+    if (active) {
+      const actor = combatSession.getState().entities[active];
+      if (actor?.team === "party") {
+        combatScene.setSelectedEntity(active);
+      }
+    }
+  }
+
+  function handleCombatEnded(outcome: "victory" | "defeat"): void {
+    if (!worldMapSession || !combatSession) return;
+
+    const updated = applyCombatResultToCampaign(
+      worldMapSession.getState(),
+      combatSession.getState(),
+    );
+
+    teardownCombat();
+
+    if (outcome === "victory") {
+      worldMapSession.replaceState(updated);
+      persistCampaign(updated);
+      worldMapScreen.show();
+      refreshWorldOverlay();
+      return;
+    }
+
+    persistCampaign(updated);
+    worldMapScreen.hide();
+    gameOverScreen.show();
+    refreshWorldOverlay();
+  }
+
+  function enterSiteFromWorldMap(): void {
+    if (!worldMapSession) return;
+    worldMapScreen.hide();
+    const config = buildEncounterForSite(
+      worldMapSession.getState(),
+      M3_DEMO_GRAPH,
+      M4_DEMO_ENCOUNTERS,
+    );
+    beginCombatSession(config);
+  }
+
   function startWorldMap(party: PartyDraft, initialState?: CampaignState): void {
     creationScreen.hide();
+    gameOverScreen.hide();
+    teardownCombat();
     renderer.domElement.style.display = "none";
-    combatActive = false;
 
     worldMapSession = new WorldMapSession(M3_DEMO_GRAPH, party, initialState);
-    worldMapScreen.bind(worldMapSession, M3_DEMO_GRAPH);
+    worldMapScreen.bind(worldMapSession, M3_DEMO_GRAPH, {
+      onEnterSite: enterSiteFromWorldMap,
+    });
     worldMapScreen.show();
     persistCampaign(worldMapSession.getState());
     refreshWorldOverlay();
@@ -384,46 +533,11 @@ function init(): void {
 
   function startCombat(config: InitialStateConfig): void {
     creationScreen.hide();
-    renderer.domElement.style.display = "block";
-
-    combatSession = new CombatSession(config);
-    combatScene = new CombatScene({ gridSize: GRID_SIZE, tileSize: TILE_SIZE });
-    combatHud = new CombatHud(document.body);
-    combatHud.setOnEndTurn(endTurn);
-
-    combatScene.buildTiles(scene);
-    combatScene.buildEntityMeshes(scene, combatSession.getState());
-    combatScene.bootstrapFromState(combatSession.getState());
-    combatHud.update(combatSession.getState());
-    combatActive = true;
-    resize();
-
-    combatSession.subscribe((events) => {
-      combatScene!.onEvent(events);
-      refreshHudAndOverlay();
-
-      const turnStarted = events.find((e) => e.type === "TurnStarted");
-      if (turnStarted) {
-        const actorId = turnStarted.payload.entity_id as EntityId;
-        const actor = combatSession!.getState().entities[actorId];
-        if (actor?.team === "party") {
-          combatScene!.setSelectedEntity(actorId);
-        } else if (actor?.team === "enemy") {
-          window.setTimeout(() => endTurn(), 500);
-        }
-      }
-    });
-
-    const active = combatSession.getState().combat.activeActorId;
-    if (active) {
-      const actor = combatSession.getState().entities[active];
-      if (actor?.team === "party") {
-        combatScene.setSelectedEntity(active);
-      }
-    }
+    worldMapScreen.hide();
+    beginCombatSession(config);
 
     if (import.meta.env.DEV) {
-      (window as unknown as { __emberwatch: { session: CombatSession } }).__emberwatch = {
+      (window as unknown as { __emberwatch: { session: CombatSession | null } }).__emberwatch = {
         session: combatSession,
       };
     }
@@ -440,7 +554,7 @@ function init(): void {
       startCombat,
     };
     console.info(
-      "[EMBERWATCH] M3 — create party, Enter World, travel between sites; F3/~ overlay",
+      "[EMBERWATCH] M4 — world map, Enter site, combat, return; F3/~ overlay",
       { manifestSummary },
     );
   }
