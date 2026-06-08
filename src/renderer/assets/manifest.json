@@ -1,0 +1,10 @@
+{
+  "assets": {
+    "tile_floor": {
+      "placeholder": "primitives/flat-gray.png"
+    },
+    "fighter_token": {
+      "placeholder": "primitives/box-blue.glb"
+    }
+  }
+}
