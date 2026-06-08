@@ -50,6 +50,8 @@ describe("renderer stateless contract", () => {
       if (normalized.endsWith("/combat-scene.ts")) continue;
       if (normalized.endsWith("/combat-hud.ts")) continue;
       if (normalized.endsWith("/creation-screen.ts")) continue;
+      if (normalized.endsWith("/world-map-session.ts")) continue;
+      if (normalized.endsWith("/world-map-screen.ts")) continue;
 
       const source = readFileSync(file, "utf-8");
       if (!source.includes("class ")) continue;

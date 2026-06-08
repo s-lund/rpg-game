@@ -5,12 +5,10 @@ import {
   abilityModifier,
   abilityPointsRemaining,
   abilityPointsSpent,
-  buildEncounterConfig,
   createDefaultParty,
   validateParty,
   type AbilityId,
   type CharacterDraft,
-  type InitialStateConfig,
   type PartyDraft,
   type SkillId,
 } from "../core/index";
@@ -18,7 +16,9 @@ import {
 const SCREEN_ID = "emberwatch-creation-screen";
 
 export interface CreationScreenOptions {
-  onStartCombat: (config: InitialStateConfig) => void;
+  onEnterWorld: (party: PartyDraft) => void;
+  onContinueSaved?: () => void;
+  hasSavedCampaign?: () => boolean;
 }
 
 interface AbilityRowRefs {
@@ -31,7 +31,10 @@ interface AbilityRowRefs {
 export class CreationScreen {
   private readonly root: HTMLDivElement;
   private party: PartyDraft;
-  private readonly onStartCombat: (config: InitialStateConfig) => void;
+  private readonly onEnterWorld: (party: PartyDraft) => void;
+  private readonly onContinueSaved?: () => void;
+  private readonly hasSavedCampaign?: () => boolean;
+  private continueBtn: HTMLButtonElement | null = null;
   private readonly errorEl: HTMLDivElement;
   private readonly startBtn: HTMLButtonElement;
   private readonly poolLabels = new Map<CharacterDraft["classId"], HTMLSpanElement>();
@@ -41,7 +44,9 @@ export class CreationScreen {
   >();
 
   constructor(container: HTMLElement, options: CreationScreenOptions) {
-    this.onStartCombat = options.onStartCombat;
+    this.onEnterWorld = options.onEnterWorld;
+    this.onContinueSaved = options.onContinueSaved;
+    this.hasSavedCampaign = options.hasSavedCampaign;
     this.party = createDefaultParty();
     this.party.members[0].name = "Aldric";
     this.party.members[1].name = "Sera";
@@ -99,7 +104,7 @@ export class CreationScreen {
 
     this.startBtn = document.createElement("button");
     this.startBtn.type = "button";
-    this.startBtn.textContent = "Start Combat";
+    this.startBtn.textContent = "Enter World";
     this.startBtn.style.cssText = [
       "margin-top: 12px",
       "padding: 10px 24px",
@@ -113,8 +118,28 @@ export class CreationScreen {
     this.startBtn.addEventListener("click", () => this.handleStart());
     this.root.appendChild(this.startBtn);
 
+    if (this.onContinueSaved) {
+      const continueBtn = document.createElement("button");
+      continueBtn.type = "button";
+      continueBtn.textContent = "Continue saved party";
+      continueBtn.style.cssText = [
+        "margin-top: 10px",
+        "padding: 10px 24px",
+        "border: 1px solid rgba(100, 140, 200, 0.55)",
+        "border-radius: 6px",
+        "background: rgba(60, 100, 160, 0.15)",
+        "color: #7eb8ff",
+        "font: 600 15px/1 ui-sans-serif, system-ui, sans-serif",
+        "cursor: pointer",
+      ].join(";");
+      continueBtn.addEventListener("click", () => this.onContinueSaved?.());
+      this.root.appendChild(continueBtn);
+      this.continueBtn = continueBtn;
+    }
+
     container.appendChild(this.root);
     this.refresh();
+    this.refreshSavedCampaignButton();
   }
 
   hide(): void {
@@ -348,7 +373,12 @@ export class CreationScreen {
       this.errorEl.textContent = validation.errors.join(" · ");
       return;
     }
-    const config = buildEncounterConfig(this.party);
-    this.onStartCombat(config);
+    this.onEnterWorld(this.party);
+  }
+
+  refreshSavedCampaignButton(): void {
+    if (!this.continueBtn || !this.hasSavedCampaign) return;
+    const visible = this.hasSavedCampaign();
+    this.continueBtn.style.display = visible ? "block" : "none";
   }
 }

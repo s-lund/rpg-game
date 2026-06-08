@@ -1,6 +1,8 @@
 /** Pure rules core — no three.js or DOM imports. */
 
-export const CORE_VERSION = "0.1.0-m2";
+export type { SiteId } from "../shared/ids";
+
+export const CORE_VERSION = "0.1.0-m3";
 
 export type { Action } from "./actions/types";
 export { resolveAction, postActionEffects } from "./actions/resolve";
@@ -15,6 +17,18 @@ export type { Session } from "./engine";
 
 export { createInitialState } from "./state";
 export { M1_DEMO_CONFIG, M2_DEMO_ENEMIES, M2_MAP_HEIGHT, M2_MAP_WIDTH } from "./scenarios/m1-demo";
+export { M3_DEMO_GRAPH } from "./scenarios/m3-demo";
+
+export type {
+  WorldSite,
+  WorldEdge,
+  WorldGraph,
+  CampaignState,
+  TravelResult,
+} from "./world/types";
+export { validateWorldGraph, getNeighbors, loadWorldGraph } from "./world/validate";
+export { createCampaignState, canTravelTo, travelTo } from "./world/travel";
+export { serializeCampaign, deserializeCampaign } from "./world/serialize";
 
 export type { CharacterDraft, PartyDraft, ValidationResult } from "./characters/types";
 export type { AbilityId, ClassId as CharacterClassId, SkillId } from "./characters/subset";

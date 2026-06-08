@@ -1,6 +1,13 @@
 import * as THREE from "three";
-import { isAdjacent } from "../core/index";
-import type { InitialStateConfig } from "../core/index";
+import {
+  deserializeCampaign,
+  isAdjacent,
+  M3_DEMO_GRAPH,
+  serializeCampaign,
+  type CampaignState,
+  type InitialStateConfig,
+  type PartyDraft,
+} from "../core/index";
 import type { EntityId } from "../shared/ids";
 import { DevOverlay } from "./dev-overlay";
 import { loadManifest, summarizeManifest } from "./assets/load-manifest";
@@ -9,6 +16,10 @@ import { CombatSession } from "./combat-session";
 import { CombatScene } from "./combat-scene";
 import { CombatHud } from "./combat-hud";
 import { CreationScreen } from "./creation-screen";
+import { WorldMapSession } from "./world-map-session";
+import { WorldMapScreen } from "./world-map-screen";
+
+const CAMPAIGN_STORAGE_KEY = "emberwatch.campaign";
 
 const ISO_YAW = Math.PI / 4;
 const ISO_PITCH = Math.atan(1 / Math.sqrt(2));
@@ -44,13 +55,37 @@ function buildAcceptanceItems() {
       id: "create_party",
       label: "Create named Fighter and Rogue",
       proof: "visual" as const,
-      how: "fill names on Recruit your party screen, assign abilities/skills, Start Combat",
+      how: "fill names on Recruit your party screen, assign abilities/skills, Enter World",
+    },
+    {
+      id: "world_map_open",
+      label: "BG-style overworld map with party token",
+      proof: "visual" as const,
+      how: "after Enter World, see illustrated map, site markers, gold party token on current site",
+    },
+    {
+      id: "world_map_travel",
+      label: "Token animates between sites",
+      proof: "visual" as const,
+      how: "click a green-highlighted neighbor on map or sidebar; token walks there; walk 3+ sites",
+    },
+    {
+      id: "world_graph_valid",
+      label: "World graph validates in core",
+      proof: "test" as const,
+      how: "npm run test — world-graph.test.ts",
+    },
+    {
+      id: "world_position_persist",
+      label: "Party position persists across moves",
+      proof: "test" as const,
+      how: "npm run test — world-travel.test.ts",
     },
     {
       id: "party_on_grid",
-      label: "Created party on combat grid",
+      label: "Created party on combat grid (M4)",
       proof: "visual" as const,
-      how: "HUD shows your names with HP/AC/attack from creation choices",
+      how: "deferred — world↔combat transition is M4",
     },
     {
       id: "end_turn",
@@ -153,6 +188,18 @@ function init(): void {
     "fighter_token",
     "manifest lists box-blue.glb; scene uses procedural box",
   );
+  presence.registerProcedural(
+    "world_map_graph",
+    "M3 demo site graph with mapX/mapY layout — procedural, not generated districts",
+  );
+  presence.registerProcedural(
+    "world_map_ui",
+    "BG-style DOM overworld — gradient parchment, SVG paths, animated party token (M8 art deferred)",
+  );
+  presence.registerProcedural(
+    "world_map_token",
+    "gold party token (⚔) — procedural marker, not a final asset",
+  );
 
   const devOverlay = new DevOverlay(import.meta.env.DEV);
   const acceptance = buildAcceptanceItems();
@@ -184,6 +231,26 @@ function init(): void {
   let combatScene: CombatScene | null = null;
   let combatHud: CombatHud | null = null;
   let combatActive = false;
+  let worldMapSession: WorldMapSession | null = null;
+  const worldMapScreen = new WorldMapScreen(document.body);
+
+  function loadSavedCampaign(): CampaignState | null {
+    try {
+      const raw = localStorage.getItem(CAMPAIGN_STORAGE_KEY);
+      if (!raw) return null;
+      return deserializeCampaign(raw);
+    } catch {
+      return null;
+    }
+  }
+
+  function persistCampaign(state: CampaignState): void {
+    localStorage.setItem(CAMPAIGN_STORAGE_KEY, serializeCampaign(state));
+  }
+
+  function refreshWorldOverlay(): void {
+    devOverlay.setState({ summary: manifestSummary, presence, acceptance: buildAcceptanceItems() });
+  }
 
   const pointer = new THREE.Vector2();
 
@@ -286,6 +353,35 @@ function init(): void {
 
   animate();
 
+  function startWorldMap(party: PartyDraft, initialState?: CampaignState): void {
+    creationScreen.hide();
+    renderer.domElement.style.display = "none";
+    combatActive = false;
+
+    worldMapSession = new WorldMapSession(M3_DEMO_GRAPH, party, initialState);
+    worldMapScreen.bind(worldMapSession, M3_DEMO_GRAPH);
+    worldMapScreen.show();
+    persistCampaign(worldMapSession.getState());
+    refreshWorldOverlay();
+
+    worldMapSession.subscribe((state) => {
+      persistCampaign(state);
+      refreshWorldOverlay();
+    });
+
+    if (import.meta.env.DEV) {
+      (window as unknown as { __emberwatch: { worldSession: WorldMapSession } }).__emberwatch = {
+        worldSession: worldMapSession,
+      };
+    }
+  }
+
+  function continueSavedCampaign(): void {
+    const saved = loadSavedCampaign();
+    if (!saved) return;
+    startWorldMap(saved.party, saved);
+  }
+
   function startCombat(config: InitialStateConfig): void {
     creationScreen.hide();
     renderer.domElement.style.display = "block";
@@ -334,12 +430,17 @@ function init(): void {
   }
 
   const creationScreen = new CreationScreen(document.body, {
-    onStartCombat: startCombat,
+    onEnterWorld: (party) => startWorldMap(party),
+    onContinueSaved: continueSavedCampaign,
+    hasSavedCampaign: () => loadSavedCampaign() !== null,
   });
 
   if (import.meta.env.DEV) {
+    (window as unknown as { __emberwatch: { startCombat: typeof startCombat } }).__emberwatch = {
+      startCombat,
+    };
     console.info(
-      "[EMBERWATCH] M2 — create party, then F3/~ overlay; End Turn or E; click to move/strike",
+      "[EMBERWATCH] M3 — create party, Enter World, travel between sites; F3/~ overlay",
       { manifestSummary },
     );
   }

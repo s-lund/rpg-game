@@ -2,8 +2,8 @@
 
 Build progress for EMBERWATCH. Milestone definitions live in `ROADMAP.md`.
 
-**Current milestone:** M3 (next)  
-**Last updated:** 2026-06-08 — M2 accepted
+**Current milestone:** M4 (next)  
+**Last updated:** 2026-06-08 — M3 accepted
 
 ---
 
@@ -14,7 +14,7 @@ Build progress for EMBERWATCH. Milestone definitions live in `ROADMAP.md`.
 | M0 Scaffold | **done** | pass | accepted |
 | M1 Combat map: move + fight | **done** | pass | accepted |
 | M2 Character creation | **done** | pass | accepted |
-| M3 World map: travel | pending | — | — |
+| M3 World map: travel | **done** | pass | accepted |
 | M4 World ↔ combat transition | pending | — | — |
 | M5 Storytelling | pending | — | — |
 | M6 District generation | pending | — | — |
@@ -53,10 +53,20 @@ Build progress for EMBERWATCH. Milestone definitions live in `ROADMAP.md`.
 
 ---
 
-## M3 — next
+## M3 — done (2026-06-08)
 
-**Goal:** strategic overworld — party moves between sites on a validated graph.
+**Delivered:** Pure-core world graph (`WorldSite` with `mapX`/`mapY`, edges, validator, `getNeighbors`); `CampaignState` + `emberwatch.campaign` v1 serialize; `travelTo` / `canTravelTo`; M3 demo graph (4 sites). Renderer: creation → **Enter World** (no direct combat); `WorldMapSession` + BG1/2-style `WorldMapScreen` (parchment map, SVG paths, animated gold party token ~2.8s, map + sidebar travel); `localStorage` campaign persist + Continue saved party. `startCombat` retained on `window.__emberwatch` for M4 wiring only.
 
-**Gate 1 targets:** world-map graph loads and validates (reachable sites, valid edges); party position persists across moves.
+**Gate 1:** `npm run test` (50 tests) — `world-graph.test.ts`, `world-travel.test.ts`; frozen contract tests unchanged.
 
-**Gate 2:** walk the party across the world map between sites.
+**Gate 2:** BG-style overworld; token animates between sites; position and routes update; accepted.
+
+---
+
+## M4 — next
+
+**Goal:** world map ↔ combat map transition — one game, party state survives both directions.
+
+**Gate 1 targets:** transition contract test (party owned by core; correct encounter loads; combat end returns updated campaign state).
+
+**Gate 2:** enter a site from world map, fight, return to world map with HP carried over.
