@@ -2,8 +2,8 @@
 
 Build progress for EMBERWATCH. Milestone definitions live in `ROADMAP.md`.
 
-**Current milestone:** M5 (next)  
-**Last updated:** 2026-06-08 — M4 accepted
+**Current milestone:** M6 (next)  
+**Last updated:** 2026-06-08 — M5 accepted
 
 ---
 
@@ -16,7 +16,7 @@ Build progress for EMBERWATCH. Milestone definitions live in `ROADMAP.md`.
 | M2 Character creation | **done** | pass | accepted |
 | M3 World map: travel | **done** | pass | accepted |
 | M4 World ↔ combat transition | **done** | pass | accepted |
-| M5 Storytelling | pending | — | — |
+| M5 Storytelling | **done** | pass | accepted |
 | M6 District generation | pending | — | — |
 | M7 Breadth + melee healer | pending | — | — |
 | M8 Art pass | pending | — | — |
@@ -73,10 +73,20 @@ Build progress for EMBERWATCH. Milestone definitions live in `ROADMAP.md`.
 
 ---
 
-## M5 — next
+## M5 — done (2026-06-08)
 
-**Goal:** narrator as a read-only consumer of the event log — atmospheric prose during play; scripted story beat at a site.
+**Delivered:** Frozen `tests/contract/narrator.test.ts`. Campaign event pipeline (`campaign-apply.ts`, `eventLog`/`nextSeq` on `CampaignState`, `Traveled` / `StoryBeatTriggered` events). Pure-core narrator: `sites.ts` ambience catalog, `beats.ts`, `format.ts`, `combat-log.ts` with `attackResolution` on strikes. Renderer: `NarratorPanel` (current site only, overworld); `CombatLogPanel` (dice combat log, combat only); auto ambience on travel + auto beat on first visit to Drowned Market. Dev overlay PROCEDURAL flags for narrator, site ambience, combat log.
 
-**Gate 1 targets:** narrator contract test (consumes event log only; disabling narrator changes nothing mechanical).
+**Gate 1:** `npm run test` (80 tests) — `narrator.test.ts`, `narrator-format.test.ts`, `campaign-apply.test.ts`, `combat-log.test.ts`; frozen `pipeline.test.ts` and `transition.test.ts` unchanged.
 
-**Gate 2:** play and read narration; trigger scripted beat at a site.
+**Gate 2:** Separate narration vs combat log; current-place narration; rich strike log; toggle does not affect mechanics; accepted.
+
+---
+
+## M6 — next
+
+**Goal:** generate an original district, walk/clear encounters, district reclamation state on world map.
+
+**Gate 1 targets:** map/district validator contract; generated districts pass invariants; cleared-state persists.
+
+**Gate 2:** generate a district, clear it, see it change on the world map.

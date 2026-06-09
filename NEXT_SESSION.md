@@ -3,34 +3,43 @@
 ```
 Continue EMBERWATCH development. Read AGENTS.md, ARCHITECTURE.md, ROADMAP.md, and PROGRESS.md first.
 
-M4 is done and accepted. Implement M5 only — Storytelling (narrator).
+M5 is done and accepted. Implement M6 only — District generation + reclamation loop.
 
-M5 goal: the narrator as a thing you experience. During exploration and combat, atmospheric prose appears derived from the authoritative event log. Trigger a scripted story beat at a site and read it. The narrator is a read-only consumer — it never mutates game state.
+M6 goal: original district content and the core reclamation loop. Generate an original district from a brief (procedural/template stand-in for gate 1 — flag PROCEDURAL; no copied map layouts). Walk it on the world map, clear its encounters, and see district reclamation progress (hostile → held) persist on the overworld. Inward difficulty tier gradient should be noticeable.
 
-M5 gate 1 (do not stop until green):
-- Frozen narrator contract in tests/contract/ (write first, then implement): narrator consumes only the event log (and optional static beat data); disabling/removing the narrator changes nothing mechanical (combat, travel, campaign HP, transitions unchanged)
-- Pure-core narrator input adapter: map GameEvent[] (+ minimal context labels: entity names, site labels) → narration lines; no three.js/DOM in core
-- Scripted story beat: at least one site in M3_DEMO_GRAPH (e.g. site_cinder_gate or site_drowned_market) has a beat id; triggering it appends beat prose without bypassing the effect pipeline
-- Do not weaken tests/contract/pipeline.test.ts, tests/contract/transition.test.ts, or any existing frozen contract
+M6 gate 1 (do not stop until green):
+- Frozen district/map validator contract in tests/contract/ (write first, then implement): area graph + per-area tile grid invariants from ARCHITECTURE.md — exits lead to real areas, bidirectional edges, reachable from entrance, spawn/cover bounds, tier monotonic inward; reject invalid proposals deterministically
+- Pure-core district types + validator + loader (no three.js/DOM in core): area graph, tile grids keyed by area id, district brief → candidate layout (procedural generator acceptable for gate 1)
+- District reclamation state on CampaignState or adjacent authoritative state: per-district or per-site cleared/hostile flags; changes only via effect pipeline or explicit validated transitions (no renderer mutation)
+- Serialize round-trip preserves cleared state; ID/label rename is a data-only edit (test with label swap, ids unchanged)
+- Do not weaken tests/contract/pipeline.test.ts, tests/contract/transition.test.ts, tests/contract/narrator.test.ts, or any existing frozen contract
+- M4 enter-site → combat → return with HP carry-over must keep working for demo and generated encounters
 
-M5 gate 2 (then STOP and report):
-- Run npm run dev, play through world map travel, enter a site, fight briefly — narration panel updates as events occur
-- Travel to the beat site and trigger/read the scripted story beat
-- Toggle narrator off (dev overlay or UI control) — confirm combat/travel/HP still work identically
-- Dev overlay flags narrator UI and any template/mock prose provider as PROCEDURAL
+M6 gate 2 (then STOP and report):
+- Run npm run dev — generate (or load) a district, travel it on the world map, enter sites and win fights, see district/site flip from hostile to held
+- Confirm inward tier gradient feels stronger toward the center
+- Rename a district label in data only — confirm nothing breaks mechanically
+- Dev overlay flags procedural generator, placeholder district art, and any mock reclamation UI as PROCEDURAL
 
 Existing hooks (do not reinvent):
-- Event log on GameState (`eventLog`, append-only via effect pipeline) — see ARCHITECTURE.md event log schema
-- CombatSession.subscribe / WorldMapSession.subscribe — renderer already receives events on combat; world travel emits campaign updates
-- Dev overlay ScenePresence + acceptance checklist pattern from M1–M4
-- M3_DEMO_GRAPH sites + labels; M4 enter-site / combat / return flow stays as built
+- World graph: WorldSite, WorldGraph, validateWorldGraph, M3_DEMO_GRAPH — extend or add parallel district model per ARCHITECTURE.md (area graph + tile grids per area)
+- Campaign: CampaignState, travelTo, campaign eventLog, serializeCampaign v1 — extend carefully or bump schema with migration tests
+- Transitions: buildEncounterForSite, applyCombatResultToCampaign, frozen transition.test.ts
+- Narration: current-site ambience via sites.ts / campaign events — optional: wire generated site labels into ambience catalog
+- Dev overlay ScenePresence + acceptance checklist from M1–M5
 
 Suggested shape (names TBD):
-- src/core/narrator/ — formatEventLine(event, context), formatBeat(beatId, context); headless tests
-- src/renderer/narrator-panel.ts — DOM panel showing recent lines; subscribe to combat events + world beats
-- Optional: narrator enabled flag in renderer only (not authoritative state)
+- src/core/map/ or src/core/district/ — types, validateDistrict, validateAreaGraph, validateTileGrid, procedural generateDistrictFromBrief
+- src/core/world/reclamation.ts — mark site/district cleared after victory; persist on campaign
+- tests/contract/district.test.ts (frozen) + tests/unit/map-validator.test.ts
+- Renderer: world map shows hostile/held status; optional “Generate district” dev control or auto-load one generated district for the slice
 
-Rules: test-first; src/core stays pure (no three.js/DOM); never modify/weaken tests/contract once written; flag mocked/template narration in dev overlay; one milestone only. Runtime LLM narrator is out of scope for M5 gate 1 — use deterministic template prose from event types first; flag as PROCEDURAL. Enemy AI remains out of scope. District generation remains M6.
+Explicitly out of scope for M6 gate 1:
+- Runtime LLM map generation (build-time / procedural stand-in only; flag PROCEDURAL)
+- Free-roam local submap before combat (enter site may still drop into tactical combat like M4 — local exploration layer is a later milestone unless you can add it without breaking transition contract)
+- Enemy AI, M7 combat inspector, M8 art pass
 
-Start by planning M5 in small tasks, then implement.
+Rules: test-first; src/core stays pure; never modify/weaken frozen contract tests once written; flag all mocks in dev overlay; one milestone only. Premium model tier only for validator contract design if stuck.
+
+Start by planning M6 in small tasks, then implement.
 ```

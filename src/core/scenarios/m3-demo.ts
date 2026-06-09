@@ -16,6 +16,7 @@ export const M3_DEMO_GRAPH: WorldGraph = {
       label: "Drowned Market",
       tier: 2,
       encounterId: "enc_drowned_market",
+      beatId: "beat_drowned_market_echoes",
       mapX: 38,
       mapY: 52,
     },

@@ -1,9 +1,15 @@
-import type { SiteId } from "../../shared/ids";
+import type { BeatId, SiteId } from "../../shared/ids";
 import { deriveEntityBlueprint } from "../characters/derive";
 import { M2_SUBSET } from "../characters/subset";
 import type { CharacterDraft, PartyDraft } from "../characters/types";
+import {
+  applyCampaignEffect,
+  defaultCampaignActorId,
+  validateStoryBeat,
+  validateTravelTo,
+} from "./campaign-apply";
 import type { CampaignState, TravelResult, WorldGraph } from "./types";
-import { getNeighbors, validateWorldGraph } from "./validate";
+import { validateWorldGraph } from "./validate";
 
 function ensurePartyHp(party: PartyDraft): PartyDraft {
   const members = party.members.map((member) => {
@@ -28,6 +34,8 @@ export function createCampaignState(party: PartyDraft, graph: WorldGraph): Campa
     party: ensurePartyHp(party),
     graphId: graph.id,
     currentSiteId: graph.startSiteId,
+    eventLog: [],
+    nextSeq: 1,
   };
 }
 
@@ -36,10 +44,7 @@ export function canTravelTo(
   graph: WorldGraph,
   targetSiteId: SiteId,
 ): boolean {
-  if (state.graphId !== graph.id) {
-    return false;
-  }
-  return getNeighbors(graph, state.currentSiteId).includes(targetSiteId);
+  return validateTravelTo(state, graph, targetSiteId).length === 0;
 }
 
 export function travelTo(
@@ -47,23 +52,60 @@ export function travelTo(
   graph: WorldGraph,
   targetSiteId: SiteId,
 ): TravelResult {
-  if (state.graphId !== graph.id) {
-    return { ok: false, errors: [`campaign graphId mismatch: ${state.graphId} vs ${graph.id}`] };
+  const errors = validateTravelTo(state, graph, targetSiteId);
+  if (errors.length > 0) {
+    return { ok: false, errors };
   }
 
-  const neighbors = getNeighbors(graph, state.currentSiteId);
-  if (!neighbors.includes(targetSiteId)) {
-    return {
-      ok: false,
-      errors: [`${targetSiteId} is not a neighbor of ${state.currentSiteId}`],
-    };
-  }
+  const effectId = `eff_travel_${state.nextSeq}`;
+  const actionId = `act_travel_${targetSiteId}`;
+  const { state: next, events } = applyCampaignEffect(
+    { kind: "TravelTo", effectId, targetSiteId },
+    state,
+    {
+      seq: state.nextSeq,
+      actorId: defaultCampaignActorId(state),
+      actionId,
+    },
+  );
 
   return {
     ok: true,
-    state: {
-      ...state,
-      currentSiteId: targetSiteId,
+    state: { ...next, nextSeq: next.nextSeq + 1 },
+    events,
+  };
+}
+
+export function triggerStoryBeat(
+  state: CampaignState,
+  graph: WorldGraph,
+  beatId: BeatId,
+): TravelResult {
+  const errors = validateStoryBeat(state, graph, beatId);
+  if (errors.length > 0) {
+    return { ok: false, errors };
+  }
+
+  const effectId = `eff_beat_${state.nextSeq}`;
+  const actionId = `act_beat_${beatId}`;
+  const { state: next, events } = applyCampaignEffect(
+    {
+      kind: "RecordStoryBeat",
+      effectId,
+      beatId,
+      siteId: state.currentSiteId,
     },
+    state,
+    {
+      seq: state.nextSeq,
+      actorId: defaultCampaignActorId(state),
+      actionId,
+    },
+  );
+
+  return {
+    ok: true,
+    state: { ...next, nextSeq: next.nextSeq + 1 },
+    events,
   };
 }

@@ -48,6 +48,8 @@ export function deserializeCampaign(json: string): CampaignState {
     party: partyWithHp,
     graphId: parsed.graphId,
     currentSiteId: parsed.currentSiteId,
+    eventLog: [],
+    nextSeq: 1,
   };
 }
 

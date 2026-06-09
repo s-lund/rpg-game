@@ -1,5 +1,5 @@
 import type { EntityId } from "../../shared/ids";
-import type { CombatOutcome, ConditionId, DamageType } from "../types";
+import type { AttackResolution, CombatOutcome, ConditionId, DamageType } from "../types";
 
 export type Effect =
   | {
@@ -15,6 +15,7 @@ export type Effect =
       targetId: EntityId;
       amount: number;
       damageType: DamageType;
+      attackResolution?: AttackResolution;
     }
   | {
       kind: "ApplyCondition";

@@ -57,5 +57,41 @@ describe("move and strike", () => {
     const damageEvent = session.state.eventLog.find((e) => e.type === "DamageDealt");
     expect(damageEvent).toBeDefined();
     expect(damageEvent!.payload.amount).toBeGreaterThan(0);
+    expect(damageEvent!.payload.attack_resolution).toBeDefined();
+    const resolution = damageEvent!.payload.attack_resolution as { hit: boolean; d20Natural: number };
+    expect(resolution.hit).toBe(true);
+    expect(resolution.d20Natural).toBeGreaterThanOrEqual(1);
+    expect(resolution.d20Natural).toBeLessThanOrEqual(20);
+  });
+
+  it("records attack resolution on a miss", () => {
+    const rng = createSeededRng(1);
+    const session = dispatch(
+      {
+        state: createInitialState({
+          width: 8,
+          height: 8,
+          party: [{ id: "ent_fighter_01", label: "Fighter", x: 4, y: 3, maxHp: 20, ac: 18, attackBonus: 0 }],
+          enemies: [{ id: "ent_goblin_01", label: "Goblin", x: 5, y: 3, maxHp: 12, ac: 30 }],
+        }),
+        nextSeq: 1,
+      },
+      {
+        kind: "Strike",
+        actionId: "act_miss",
+        actorId: "ent_fighter_01",
+        targetId: "ent_goblin_01",
+      },
+      rng,
+    );
+
+    const goblin = session.state.entities["ent_goblin_01"]!;
+    expect(goblin.hp).toBe(12);
+
+    const atkEvent = session.state.eventLog.find((e) => e.type === "DamageDealt");
+    expect(atkEvent).toBeDefined();
+    const resolution = atkEvent!.payload.attack_resolution as { hit: boolean };
+    expect(resolution.hit).toBe(false);
+    expect(atkEvent!.payload.amount).toBe(0);
   });
 });

@@ -1,8 +1,8 @@
 /** Pure rules core — no three.js or DOM imports. */
 
-export type { SiteId } from "../shared/ids";
+export type { BeatId, SiteId } from "../shared/ids";
 
-export const CORE_VERSION = "0.1.0-m4";
+export const CORE_VERSION = "0.1.0-m5";
 
 export type { Action } from "./actions/types";
 export { resolveAction, postActionEffects } from "./actions/resolve";
@@ -33,7 +33,13 @@ export {
   getNeighbors,
   loadWorldGraph,
 } from "./world/validate";
-export { createCampaignState, canTravelTo, travelTo } from "./world/travel";
+export { applyCampaignEffect } from "./world/campaign-apply";
+export type { CampaignEffect, CampaignApplyContext, CampaignApplyResult } from "./world/campaign-apply";
+export { createCampaignState, canTravelTo, travelTo, triggerStoryBeat } from "./world/travel";
+export { formatEventLine, formatBeat, formatEvents } from "./narrator/format";
+export { formatCombatLogBatch } from "./narrator/combat-log";
+export { formatSiteAmbience } from "./narrator/sites";
+export type { NarrationContext } from "./narrator/types";
 export { serializeCampaign, deserializeCampaign } from "./world/serialize";
 export { buildEncounterForSite, applyCombatResultToCampaign } from "./world/transition";
 
@@ -69,4 +75,5 @@ export type {
   ConditionId,
   ClassId,
   InitialStateConfig,
+  AttackResolution,
 } from "./types";

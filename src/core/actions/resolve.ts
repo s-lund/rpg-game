@@ -11,12 +11,21 @@ export interface ResolveResult {
   events?: never;
 }
 
-function rollDamage(rng: Rng, count: number, sides: number, modifier: number): number {
-  let total = modifier;
+function rollDice(rng: Rng, count: number, sides: number): number[] {
+  const rolls: number[] = [];
   for (let i = 0; i < count; i++) {
-    total += rng.integer(1, sides);
+    rolls.push(rng.integer(1, sides));
   }
-  return Math.max(0, total);
+  return rolls;
+}
+
+function sumDice(rolls: number[], modifier: number): number {
+  return Math.max(0, rolls.reduce((sum, roll) => sum + roll, 0) + modifier);
+}
+
+function weaponLabel(count: number, sides: number, modifier: number): string {
+  const mod = modifier >= 0 ? `+${modifier}` : `${modifier}`;
+  return `${count}d${sides}${mod}`;
 }
 
 export function resolveAction(action: Action, state: GameState, rng: Rng): ResolveResult {
@@ -117,7 +126,8 @@ function resolveStrike(
     });
   }
 
-  const attackRoll = rng.d20() + actor.attackBonus;
+  const d20Natural = rng.d20();
+  const attackTotal = d20Natural + actor.attackBonus;
   const targetAc = effectiveAc(
     flanking && !target.conditions.includes("flat_footed")
       ? {
@@ -134,15 +144,16 @@ function resolveStrike(
     action.targetId,
   );
 
-  if (attackRoll >= targetAc) {
-    let damage = rollDamage(
-      rng,
-      actor.damage.count,
-      actor.damage.sides,
-      actor.damage.modifier,
-    );
+  const wLabel = weaponLabel(actor.damage.count, actor.damage.sides, actor.damage.modifier);
+  const hit = attackTotal >= targetAc;
+
+  if (hit) {
+    const damageRolls = rollDice(rng, actor.damage.count, actor.damage.sides);
+    let sneakRolls: number[] | undefined;
+    let damage = sumDice(damageRolls, actor.damage.modifier);
     if (flanking && actor.classId === "rogue") {
-      damage += rollDamage(rng, 1, 6, 0);
+      sneakRolls = rollDice(rng, 1, 6);
+      damage += sneakRolls.reduce((sum, roll) => sum + roll, 0);
     }
 
     effects.push({
@@ -151,6 +162,18 @@ function resolveStrike(
       targetId: action.targetId,
       amount: damage,
       damageType: "slashing",
+      attackResolution: {
+        hit: true,
+        d20Natural,
+        attackBonus: actor.attackBonus,
+        attackTotal,
+        targetAc,
+        flanking,
+        weaponLabel: wLabel,
+        damageRolls,
+        damageModifier: actor.damage.modifier,
+        sneakRolls,
+      },
     });
 
     const hpAfter = Math.max(0, target.hp - damage);
@@ -161,6 +184,23 @@ function resolveStrike(
         entityId: action.targetId,
       });
     }
+  } else {
+    effects.push({
+      kind: "Damage",
+      effectId: `${action.actionId}_miss`,
+      targetId: action.targetId,
+      amount: 0,
+      damageType: "slashing",
+      attackResolution: {
+        hit: false,
+        d20Natural,
+        attackBonus: actor.attackBonus,
+        attackTotal,
+        targetAc,
+        flanking,
+        weaponLabel: wLabel,
+      },
+    });
   }
 
   return { effects };

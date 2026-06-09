@@ -3,15 +3,22 @@ import {
   applyCombatResultToCampaign,
   buildEncounterForSite,
   deserializeCampaign,
+  formatBeat,
+  formatCombatLogBatch,
+  formatSiteAmbience,
   isAdjacent,
   M3_DEMO_GRAPH,
   M4_DEMO_ENCOUNTERS,
   serializeCampaign,
   type CampaignState,
+  type GameEvent,
+  type GameState,
   type InitialStateConfig,
   type PartyDraft,
+  type SiteId,
+  type WorldGraph,
 } from "../core/index";
-import type { EntityId } from "../shared/ids";
+import type { BeatId, EntityId } from "../shared/ids";
 import { DevOverlay } from "./dev-overlay";
 import { loadManifest, summarizeManifest } from "./assets/load-manifest";
 import { ScenePresence } from "./scene-presence";
@@ -22,6 +29,8 @@ import { CreationScreen } from "./creation-screen";
 import { WorldMapSession } from "./world-map-session";
 import { GameOverScreen } from "./game-over-screen";
 import { WorldMapScreen } from "./world-map-screen";
+import { NarratorPanel } from "./narrator-panel";
+import { CombatLogPanel } from "./combat-log-panel";
 
 const CAMPAIGN_STORAGE_KEY = "emberwatch.campaign";
 
@@ -114,6 +123,30 @@ function buildAcceptanceItems() {
       label: "M4 mocks flagged in overlay",
       proof: "overlay" as const,
       how: "F3/~ lists enter_site_ui, site_encounter_mapping, game_over_screen as PROCEDURAL",
+    },
+    {
+      id: "m5_narration_combat",
+      label: "Narration panel updates during travel and combat",
+      proof: "visual" as const,
+      how: "travel on overworld — top-right shows current place only; in combat that panel becomes a dice combat log",
+    },
+    {
+      id: "m5_story_beat",
+      label: "Scripted story beat at Drowned Market",
+      proof: "visual" as const,
+      how: "travel to Drowned Market — place card appears with extra beat prose on first visit",
+    },
+    {
+      id: "m5_narrator_toggle",
+      label: "Narrator toggle does not affect mechanics",
+      proof: "visual" as const,
+      how: "uncheck Narration On in panel; travel, enter site, fight — HP and travel still work",
+    },
+    {
+      id: "m5_procedural_flags",
+      label: "M5 narrator flagged in overlay",
+      proof: "overlay" as const,
+      how: "F3/~ lists narrator_panel and narrator_template_prose as PROCEDURAL",
     },
     {
       id: "end_turn",
@@ -240,6 +273,22 @@ function init(): void {
     "game_over_screen",
     "M4 defeat Game Over overlay — procedural placeholder screen",
   );
+  presence.registerProcedural(
+    "narrator_panel",
+    "M5 narration sidebar — template prose from event log, not runtime LLM",
+  );
+  presence.registerProcedural(
+    "narrator_template_prose",
+    "M5 deterministic event→line templates and static beat catalog — PROCEDURAL until LLM narrator",
+  );
+  presence.registerProcedural(
+    "site_ambience_catalog",
+    "M5 per-site ambient prose on first visit — static template catalog, not generated districts",
+  );
+  presence.registerProcedural(
+    "combat_log_panel",
+    "M5 combat dice log — separate from narration; strike rolls from event log payload",
+  );
 
   const devOverlay = new DevOverlay(import.meta.env.DEV);
   const acceptance = buildAcceptanceItems();
@@ -274,6 +323,66 @@ function init(): void {
   let worldMapSession: WorldMapSession | null = null;
   let combatEndedHandled = false;
   const worldMapScreen = new WorldMapScreen(document.body);
+  const narratorPanel = new NarratorPanel(document.body);
+  const combatLogPanel = new CombatLogPanel(document.body);
+  let worldEventUnsubscribe: (() => void) | null = null;
+
+  function siteLabelFor(graph: WorldGraph, siteId: SiteId): string {
+    return graph.sites.find((s) => s.id === siteId)?.label ?? siteId;
+  }
+
+  function buildCombatNarrationContext(state: GameState) {
+    return {
+      entityLabels: Object.fromEntries(
+        Object.entries(state.entities).map(([id, e]) => [id, e.label]),
+      ),
+    };
+  }
+
+  function buildWorldNarrationContext(graph: WorldGraph, siteId: SiteId) {
+    return {
+      entityLabels: {},
+      siteLabel: siteLabelFor(graph, siteId),
+    };
+  }
+
+  function campaignHasBeatTriggered(state: CampaignState, beatId: BeatId): boolean {
+    return state.eventLog.some(
+      (e) => e.type === "StoryBeatTriggered" && e.payload.beat_id === beatId,
+    );
+  }
+
+  function showCurrentSiteNarration(siteId: SiteId): void {
+    const label = siteLabelFor(M3_DEMO_GRAPH, siteId);
+    narratorPanel.setCurrentPlace(label, [formatSiteAmbience(siteId, label)]);
+    maybeAutoTriggerBeat(siteId);
+  }
+
+  function maybeAutoTriggerBeat(siteId: SiteId): void {
+    if (!worldMapSession) return;
+    const site = M3_DEMO_GRAPH.sites.find((s) => s.id === siteId);
+    if (!site?.beatId) return;
+    if (campaignHasBeatTriggered(worldMapSession.getState(), site.beatId)) return;
+    worldMapSession.triggerStoryBeat(M3_DEMO_GRAPH, site.beatId);
+  }
+
+  function handleWorldNarration(events: GameEvent[]): void {
+    if (!narratorPanel.isEnabled()) return;
+    for (const event of events) {
+      if (event.type === "Traveled") {
+        showCurrentSiteNarration(event.payload.to_site_id as SiteId);
+      }
+      if (event.type === "StoryBeatTriggered") {
+        const siteId = event.payload.site_id as SiteId;
+        const beatId = event.payload.beat_id as BeatId;
+        narratorPanel.appendCurrentLine(
+          formatBeat(beatId, buildWorldNarrationContext(M3_DEMO_GRAPH, siteId)),
+        );
+      }
+    }
+  }
+
+  narratorPanel.setOnEnabledChange(() => refreshWorldOverlay());
   const gameOverScreen = new GameOverScreen(document.body, {
     onReturnToCreation: () => {
       localStorage.removeItem(CAMPAIGN_STORAGE_KEY);
@@ -407,6 +516,8 @@ function init(): void {
     combatActive = false;
     combatEndedHandled = false;
     renderer.domElement.style.display = "none";
+    combatLogPanel.hide();
+    combatLogPanel.clear();
     combatHud?.destroy();
     combatSession = null;
     combatScene = null;
@@ -416,6 +527,9 @@ function init(): void {
   function beginCombatSession(config: InitialStateConfig): void {
     teardownCombat();
     renderer.domElement.style.display = "block";
+    narratorPanel.hide();
+    combatLogPanel.clear();
+    combatLogPanel.show();
 
     combatSession = new CombatSession(config);
     combatScene = new CombatScene({ gridSize: GRID_SIZE, tileSize: TILE_SIZE });
@@ -433,6 +547,9 @@ function init(): void {
     combatSession.subscribe((events) => {
       combatScene!.onEvent(events);
       refreshHudAndOverlay();
+      combatLogPanel.appendLines(
+        formatCombatLogBatch(events, buildCombatNarrationContext(combatSession!.getState())),
+      );
 
       const combatEnded = events.find((e) => e.type === "CombatEnded");
       if (combatEnded && !combatEndedHandled) {
@@ -478,6 +595,8 @@ function init(): void {
       worldMapSession.replaceState(updated);
       persistCampaign(updated);
       worldMapScreen.show();
+      narratorPanel.show();
+      showCurrentSiteNarration(worldMapSession.getState().currentSiteId);
       refreshWorldOverlay();
       return;
     }
@@ -504,12 +623,17 @@ function init(): void {
     gameOverScreen.hide();
     teardownCombat();
     renderer.domElement.style.display = "none";
+    worldEventUnsubscribe?.();
+    worldEventUnsubscribe = null;
 
     worldMapSession = new WorldMapSession(M3_DEMO_GRAPH, party, initialState);
     worldMapScreen.bind(worldMapSession, M3_DEMO_GRAPH, {
       onEnterSite: enterSiteFromWorldMap,
     });
     worldMapScreen.show();
+    combatLogPanel.hide();
+    narratorPanel.show();
+    showCurrentSiteNarration(worldMapSession.getState().currentSiteId);
     persistCampaign(worldMapSession.getState());
     refreshWorldOverlay();
 
@@ -517,6 +641,8 @@ function init(): void {
       persistCampaign(state);
       refreshWorldOverlay();
     });
+
+    worldEventUnsubscribe = worldMapSession.subscribeEvents(handleWorldNarration);
 
     if (import.meta.env.DEV) {
       (window as unknown as { __emberwatch: { worldSession: WorldMapSession } }).__emberwatch = {
@@ -554,7 +680,7 @@ function init(): void {
       startCombat,
     };
     console.info(
-      "[EMBERWATCH] M4 — world map, Enter site, combat, return; F3/~ overlay",
+      "[EMBERWATCH] M5 — narration panel, story beats, world map, combat; F3/~ overlay",
       { manifestSummary },
     );
   }

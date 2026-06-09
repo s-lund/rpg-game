@@ -60,16 +60,20 @@ function buildEvent(effect: Effect, state: GameState, ctx: ApplyContext): GameEv
     }
     case "Damage": {
       const target = state.entities[effect.targetId]!;
+      const payload: Record<string, unknown> = {
+        target_id: effect.targetId,
+        amount: effect.amount,
+        damage_type: effect.damageType,
+        hp_after: Math.max(0, target.hp - effect.amount),
+        from_effect: effect.effectId,
+      };
+      if (effect.attackResolution) {
+        payload.attack_resolution = effect.attackResolution;
+      }
       return {
         ...base,
         type: "DamageDealt",
-        payload: {
-          target_id: effect.targetId,
-          amount: effect.amount,
-          damage_type: effect.damageType,
-          hp_after: Math.max(0, target.hp - effect.amount),
-          from_effect: effect.effectId,
-        },
+        payload,
       };
     }
     case "ApplyCondition":

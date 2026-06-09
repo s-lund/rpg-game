@@ -10,6 +10,20 @@ export type DamageType = "slashing" | "piercing";
 
 export type CombatOutcome = "victory" | "defeat";
 
+/** Roll breakdown attached to strike damage effects and DamageDealt events. */
+export interface AttackResolution {
+  hit: boolean;
+  d20Natural: number;
+  attackBonus: number;
+  attackTotal: number;
+  targetAc: number;
+  flanking: boolean;
+  weaponLabel: string;
+  damageRolls?: number[];
+  damageModifier?: number;
+  sneakRolls?: number[];
+}
+
 export interface Entity {
   id: EntityId;
   label: string;
