@@ -2,8 +2,8 @@
 
 Build progress for EMBERWATCH. Milestone definitions live in `ROADMAP.md`.
 
-**Current milestone:** M6 (next)  
-**Last updated:** 2026-06-08 — M5 accepted
+**Current milestone:** M6 (gate 2 — human acceptance pending)  
+**Last updated:** 2026-06-09 — M6 gate 1 complete
 
 ---
 
@@ -17,9 +17,10 @@ Build progress for EMBERWATCH. Milestone definitions live in `ROADMAP.md`.
 | M3 World map: travel | **done** | pass | accepted |
 | M4 World ↔ combat transition | **done** | pass | accepted |
 | M5 Storytelling | **done** | pass | accepted |
-| M6 District generation | pending | — | — |
+| M6 District generation | **gate 1 done** | pass | pending |
 | M7 Breadth + melee healer | pending | — | — |
-| M8 Art pass | pending | — | — |
+| M8 Strategic maps + content packs | pending | — | — |
+| M9 Tactical art pass | pending | — | — |
 
 ---
 
@@ -83,10 +84,10 @@ Build progress for EMBERWATCH. Milestone definitions live in `ROADMAP.md`.
 
 ---
 
-## M6 — next
+## M6 — gate 1 done (2026-06-09)
 
-**Goal:** generate an original district, walk/clear encounters, district reclamation state on world map.
+**Delivered:** Pure-core district model (`src/core/district/` — types, validator, procedural `generateDistrictFromBrief`, loader); `DistrictPackage` with separate world + interior graphs; reclamation (`siteControl`, `markSiteHeld`, `MarkSiteHeld` effect); shared pathfinding for held/safe travel (`pathfinding.ts`, `travelWithinDistrict`); campaign v3 serialize (`mapLayer`, `activeDistrictId`, `currentAreaSiteId`, `siteControl`); frozen `tests/contract/district.test.ts`. Renderer: generated Ashen Ward on world map; **Enter district** → `StrategicMapScreen` district layer (unified strategic map — not a separate tile-grid UI); auto-combat on hostile arrival; victory returns to district map with area held; return to world map only from entrance; combat scene `destroy()` on teardown; dev PROCEDURAL flags.
 
-**Gate 1 targets:** map/district validator contract; generated districts pass invariants; cleared-state persists.
+**Gate 1:** `npm run test` (117 tests) — `district.test.ts`, `map-validator.test.ts`, `district-generate.test.ts`, `reclamation.test.ts`, `district-presence.test.ts`, `world-pathfinding.test.ts`, `site-kinds.test.ts`; frozen `pipeline.test.ts`, `transition.test.ts`, `narrator.test.ts` unchanged.
 
-**Gate 2:** generate a district, clear it, see it change on the world map.
+**Gate 2 (pending):** generate/load district, enter district strategic map, clear encounters, see hostile → held on map, confirm tier gradient, label-only rename, overlay PROCEDURAL flags.

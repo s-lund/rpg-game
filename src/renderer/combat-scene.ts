@@ -71,6 +71,23 @@ export class CombatScene {
     }
   }
 
+  destroy(scene: THREE.Scene): void {
+    for (const tile of this.tileMeshes) {
+      scene.remove(tile);
+      tile.geometry.dispose();
+      (tile.material as THREE.Material).dispose();
+    }
+    this.tileMeshes.length = 0;
+
+    for (const visual of this.visuals.values()) {
+      scene.remove(visual.mesh);
+      visual.mesh.geometry.dispose();
+      (visual.mesh.material as THREE.Material).dispose();
+    }
+    this.visuals.clear();
+    this.selectedEntityId = null;
+  }
+
   buildEntityMeshes(scene: THREE.Scene, state: GameState): void {
     for (const entity of Object.values(state.entities)) {
       const color = entity.team === "party" ? 0x4a7fc1 : 0x6b8f3c;

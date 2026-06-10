@@ -36,12 +36,12 @@ describe("world travel", () => {
     }
   });
 
-  it("travelTo rejects non-neighbor site", () => {
+  it("travelTo rejects unreachable site through hostile corridor", () => {
     const state = createCampaignState(createDefaultParty(), M3_DEMO_GRAPH);
     const result = travelTo(state, M3_DEMO_GRAPH, "site_bell_tower_ruins");
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.errors.some((e) => e.includes("neighbor"))).toBe(true);
+      expect(result.errors.some((e) => e.includes("route"))).toBe(true);
     }
   });
 

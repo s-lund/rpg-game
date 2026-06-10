@@ -1,8 +1,8 @@
 /** Pure rules core — no three.js or DOM imports. */
 
-export type { BeatId, SiteId } from "../shared/ids";
+export type { AreaId, BeatId, DistrictId, ExitId, SiteId } from "../shared/ids";
 
-export const CORE_VERSION = "0.1.0-m5";
+export const CORE_VERSION = "0.1.0-m6";
 
 export type { Action } from "./actions/types";
 export { resolveAction, postActionEffects } from "./actions/resolve";
@@ -25,8 +25,66 @@ export type {
   WorldEdge,
   WorldGraph,
   CampaignState,
+  MapLayer,
+  SiteControl,
+  SiteKind,
   TravelResult,
 } from "./world/types";
+export {
+  enterDistrict,
+  exitDistrictToWorld,
+  moveInDistrict,
+  travelWithinDistrict,
+  validateExitDistrict,
+  activeInteriorSiteId,
+  normalizeDistrictFields,
+} from "./world/district-presence";
+export {
+  getInteriorNeighbors,
+  isDistrictEntrance,
+  exitLabelForNeighbor,
+  areaIdForSite,
+} from "./district/navigate";
+export {
+  resolveSiteKind,
+  siteHasCombatEncounter,
+  shouldFightOnArrival,
+} from "./world/site-kinds";
+export {
+  findTravelPath,
+  getTravelDestinations,
+  canReachSite,
+  isSitePassable,
+} from "./world/pathfinding";
+export type {
+  Area,
+  AreaEdge,
+  District,
+  DistrictBrief,
+  DistrictPackage,
+  TileGrid,
+  TileKind,
+} from "./district/types";
+export {
+  validateAreaGraph,
+  validateTileGrid,
+  validateDistrict,
+  MIN_SPAWN,
+  MAX_SPAWN,
+  MIN_COVER,
+  MAX_COVER,
+} from "./district/validate";
+export { loadDistrict } from "./district/load";
+export {
+  generateDistrictFromBrief,
+  DEFAULT_DISTRICT_BRIEF,
+} from "./district/generate";
+export {
+  getSiteControl,
+  isSiteHeld,
+  countHeldSites,
+  markSiteHeld,
+} from "./world/reclamation";
 export {
   validateWorldGraph,
   validateWorldGraphEncounters,

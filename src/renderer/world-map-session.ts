@@ -1,5 +1,6 @@
 import {
   createCampaignState,
+  normalizeDistrictFields,
   travelTo,
   triggerStoryBeat,
   type BeatId,
@@ -82,5 +83,10 @@ function normalizeCampaignState(state: CampaignState): CampaignState {
     typeof state.nextSeq === "number" && Number.isFinite(state.nextSeq)
       ? state.nextSeq
       : eventLog.length + 1;
-  return { ...state, eventLog, nextSeq };
+  return normalizeDistrictFields({
+    ...state,
+    siteControl: state.siteControl ?? {},
+    eventLog,
+    nextSeq,
+  });
 }

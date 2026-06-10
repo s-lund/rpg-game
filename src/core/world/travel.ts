@@ -24,16 +24,32 @@ function ensurePartyHp(party: PartyDraft): PartyDraft {
   return { members: members as [CharacterDraft, CharacterDraft] };
 }
 
-export function createCampaignState(party: PartyDraft, graph: WorldGraph): CampaignState {
+export function createCampaignState(
+  party: PartyDraft,
+  graph: WorldGraph,
+  interiorGraph?: WorldGraph,
+): CampaignState {
   const validation = validateWorldGraph(graph);
   if (!validation.ok) {
     throw new Error(validation.errors.join("; "));
+  }
+
+  const siteControl: CampaignState["siteControl"] = {};
+  for (const site of graph.sites) {
+    siteControl[site.id] = "hostile";
+  }
+  if (interiorGraph) {
+    for (const site of interiorGraph.sites) {
+      siteControl[site.id] = "hostile";
+    }
   }
 
   return {
     party: ensurePartyHp(party),
     graphId: graph.id,
     currentSiteId: graph.startSiteId,
+    mapLayer: "world",
+    siteControl,
     eventLog: [],
     nextSeq: 1,
   };

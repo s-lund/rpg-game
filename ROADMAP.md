@@ -55,10 +55,10 @@ Milestones are sequential and each is a bounded loop target. Stack: TypeScript +
 
 ## M6 — District generation + reclamation loop
 **Goal:** original content and the core game loop.
-- **You can try:** generate an original district from a brief, walk it, clear its encounters, and see the city-reclamation progress as a district flips from hostile to held; the inward difficulty gradient is noticeable.
-- **Loop self-check:** generated districts pass all validator invariants; ID/label rename works as a data edit; a district's cleared-state persists.
-- **Stop signal:** "M6 done. Generate a district, clear it, see it change on the world map."
-- **Model:** premium for validator invariants; standard for generator + loaders. *Candidate skill: `generate-and-validate-map`.*
+- **You can try:** generate an original district from a brief; **Enter** it from the world map into a **district strategic map** (same map UI as the frontier — nodes, paths, token); walk areas, fight hostiles, and see reclamation progress as areas flip hostile → held on both district and world maps; inward difficulty tier gradient is noticeable; return to the frontier only from the district entrance.
+- **Loop self-check:** generated districts pass all validator invariants; ID/label rename works as a data edit; cleared/held state persists; `mapLayer` and interior graph round-trip through campaign serialize; frozen transition contract still passes.
+- **Stop signal:** "M6 done. Generate a district, enter it, clear areas on the district map, see held status persist — then return to the world map from the entrance."
+- **Model:** premium for validator invariants; standard for generator + loaders. *Candidate skill: `generate-and-validate-map`.* Strategic map *art* stays procedural until M8.
 
 ## M7 — Breadth + the melee healer
 **Goal:** depth on the proven foundation.
@@ -67,11 +67,18 @@ Milestones are sequential and each is a bounded loop target. Stack: TypeScript +
 - **Stop signal:** "M7 done. Play a fight using the healer and the new options; hover a foe and read the combat breakdown."
 - **Model:** standard. *Candidate skills: `add-effect`, `add-action`.*
 
-## M8 — Art pass (deferred on purpose)
-**Goal:** make it look good, last, behind the seam.
-- **You can try:** placeholder boxes replaced with real GLB models (Tripo/Meshy), the game otherwise unchanged.
-- **Loop self-check:** assets load via `GLTFLoader`; not one line of core code changed.
-- **Stop signal:** "M8 done. Look at it."
+## M8 — Strategic map presentation + content packs *(new)*
+**Goal:** real illustrated world and district maps, loaded through the same swappable presentation seam — engine stays fixed, a new game is mostly new data + assets.
+- **You can try:** the procedural parchment strategic map is replaced (or skinned) by real map art for the frontier overworld and at least one district interior; site markers, paths, and the party token sit on top of the artwork; swapping the content pack (manifest + graph data + image refs) changes the game's look and locations without touching core rules.
+- **Loop self-check:** strategic map chrome reads backgrounds, marker icons, and path styling from the asset manifest / content pack — not hardcoded paths in renderer source; world and district layers use the same `StrategicMapScreen` presentation contract; core still owns only graphs and campaign state (no image URLs in authoritative state); a second minimal pack (e.g. relabel + recolor + different background) loads and plays.
+- **Stop signal:** "M8 done. Open the game — the world map and a district map look illustrated, not procedural; drop in the alt pack and see a different map skin."
+- **Model:** standard for manifest + loader wiring; N/A for producing final art (out-of-loop). *Fixed authored maps and procedurally generated graphs both remain valid — art is presentation anchored to `mapX`/`mapY`, topology stays data.*
+
+## M9 — Tactical art pass (deferred on purpose)
+**Goal:** make combat look good, last, behind the seam.
+- **You can try:** placeholder boxes and flat tiles replaced with real GLB models (Tripo/Meshy) and tile meshes where defined, the game otherwise unchanged.
+- **Loop self-check:** tactical assets load via `GLTFLoader` (and manifest for tiles where used); not one line of core code changed.
+- **Stop signal:** "M9 done. Look at it."
 - **Model:** N/A (asset tools). Asset-tool MCPs become relevant here.
 
 ---

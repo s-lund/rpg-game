@@ -2,15 +2,26 @@ import * as THREE from "three";
 import {
   applyCombatResultToCampaign,
   buildEncounterForSite,
+  createCampaignState,
+  DEFAULT_DISTRICT_BRIEF,
   deserializeCampaign,
   formatBeat,
   formatCombatLogBatch,
   formatSiteAmbience,
+  generateDistrictFromBrief,
   isAdjacent,
+  markSiteHeld,
+  shouldFightOnArrival,
+  enterDistrict,
+  exitDistrictToWorld,
+  travelWithinDistrict,
+  validateExitDistrict,
+  isDistrictEntrance,
   M3_DEMO_GRAPH,
   M4_DEMO_ENCOUNTERS,
   serializeCampaign,
   type CampaignState,
+  type EncounterTemplate,
   type GameEvent,
   type GameState,
   type InitialStateConfig,
@@ -18,6 +29,7 @@ import {
   type SiteId,
   type WorldGraph,
 } from "../core/index";
+import type { EncounterId } from "../shared/ids";
 import type { BeatId, EntityId } from "../shared/ids";
 import { DevOverlay } from "./dev-overlay";
 import { loadManifest, summarizeManifest } from "./assets/load-manifest";
@@ -28,11 +40,22 @@ import { CombatHud } from "./combat-hud";
 import { CreationScreen } from "./creation-screen";
 import { WorldMapSession } from "./world-map-session";
 import { GameOverScreen } from "./game-over-screen";
-import { WorldMapScreen } from "./world-map-screen";
+import { StrategicMapScreen, WorldMapScreen } from "./world-map-screen";
 import { NarratorPanel } from "./narrator-panel";
 import { CombatLogPanel } from "./combat-log-panel";
+import type { District } from "../core/index";
 
 const CAMPAIGN_STORAGE_KEY = "emberwatch.campaign";
+const DEFAULT_DISTRICT_SEED = 42;
+
+interface ActiveWorldContent {
+  worldGraph: WorldGraph;
+  interiorGraph: WorldGraph | null;
+  encounters: Record<EncounterId, EncounterTemplate>;
+  district: District | null;
+  districtSeed: number;
+  isGenerated: boolean;
+}
 
 const ISO_YAW = Math.PI / 4;
 const ISO_PITCH = Math.atan(1 / Math.sqrt(2));
@@ -60,6 +83,47 @@ function createIsometricCamera(width: number, height: number): THREE.Orthographi
   camera.lookAt(0, 0, 0);
 
   return camera;
+}
+
+function buildGeneratedWorld(seed: number): ActiveWorldContent {
+  try {
+    const pkg = generateDistrictFromBrief(DEFAULT_DISTRICT_BRIEF, seed);
+    return {
+      worldGraph: pkg.worldGraph,
+      interiorGraph: pkg.interiorGraph,
+      encounters: pkg.encounters,
+      district: pkg.district,
+      districtSeed: seed,
+      isGenerated: true,
+    };
+  } catch {
+    return {
+      worldGraph: M3_DEMO_GRAPH,
+      interiorGraph: null,
+      encounters: M4_DEMO_ENCOUNTERS,
+      district: null,
+      districtSeed: seed,
+      isGenerated: false,
+    };
+  }
+}
+
+function resolveWorldContent(graphId: string, seed = DEFAULT_DISTRICT_SEED): ActiveWorldContent {
+  if (graphId === M3_DEMO_GRAPH.id) {
+    return {
+      worldGraph: M3_DEMO_GRAPH,
+      interiorGraph: null,
+      encounters: M4_DEMO_ENCOUNTERS,
+      district: null,
+      districtSeed: seed,
+      isGenerated: false,
+    };
+  }
+  const generated = buildGeneratedWorld(seed);
+  if (generated.worldGraph.id === graphId || generated.interiorGraph?.id === graphId) {
+    return generated;
+  }
+  return generated;
 }
 
 function buildAcceptanceItems() {
@@ -149,6 +213,24 @@ function buildAcceptanceItems() {
       how: "F3/~ lists narrator_panel and narrator_template_prose as PROCEDURAL",
     },
     {
+      id: "m6_district_reclamation",
+      label: "Sites flip hostile to held after victory",
+      proof: "visual" as const,
+      how: "enter a site, win the fight — marker turns teal (Held); sidebar shows district progress",
+    },
+    {
+      id: "m6_tier_gradient",
+      label: "Inward tier gradient on generated district",
+      proof: "visual" as const,
+      how: "travel toward center sites — sidebar Tier rises; fights get tougher enemies",
+    },
+    {
+      id: "m6_procedural_flags",
+      label: "M6 district mocks flagged in overlay",
+      proof: "overlay" as const,
+      how: "F3/~ lists district_generator, district_reclamation_ui, district_overworld_art as PROCEDURAL",
+    },
+    {
       id: "end_turn",
       label: "End Turn button visible",
       proof: "visual" as const,
@@ -221,7 +303,7 @@ function init(): void {
   const manifestSummary = summarizeManifest(manifest);
   const presence = new ScenePresence();
 
-  presence.registerProcedural("tile_grid", "checkerboard tiles — tile_floor GLB deferred to M8");
+  presence.registerProcedural("tile_grid", "checkerboard tiles — tile_floor GLB deferred to M9");
   presence.registerProcedural("fighter_token", "blue box mesh — fighter_token GLB placeholder");
   presence.registerProcedural("rogue_token", "blue box mesh — rogue_token not in manifest yet");
   presence.registerProcedural("goblin_token", "green box mesh — goblin_token not in manifest yet");
@@ -255,7 +337,7 @@ function init(): void {
   );
   presence.registerProcedural(
     "world_map_ui",
-    "BG-style DOM overworld — gradient parchment, SVG paths, animated party token (M8 art deferred)",
+    "BG-style DOM strategic map — gradient parchment, SVG paths, animated party token (M8 illustrated maps deferred)",
   );
   presence.registerProcedural(
     "world_map_token",
@@ -289,6 +371,26 @@ function init(): void {
     "combat_log_panel",
     "M5 combat dice log — separate from narration; strike rolls from event log payload",
   );
+  presence.registerProcedural(
+    "district_generator",
+    "M6 procedural brief→layout — seeded template, not runtime LLM",
+  );
+  presence.registerProcedural(
+    "district_tile_grids",
+    "M6 validated area tile grids — not rendered locally until free-roam milestone",
+  );
+  presence.registerProcedural(
+    "district_reclamation_ui",
+    "M6 hostile/held site markers and district progress — placeholder styling",
+  );
+  presence.registerProcedural(
+    "district_overworld_art",
+    "M6 generated district overworld layout — procedural site positions",
+  );
+  presence.registerProcedural(
+    "location_map_screen",
+    "M6 area tile-grid preview between overworld and combat — not free-roam yet",
+  );
 
   const devOverlay = new DevOverlay(import.meta.env.DEV);
   const acceptance = buildAcceptanceItems();
@@ -316,6 +418,7 @@ function init(): void {
   sun.shadow.mapSize.set(1024, 1024);
   scene.add(sun);
 
+  let activeWorld: ActiveWorldContent = buildGeneratedWorld(DEFAULT_DISTRICT_SEED);
   let combatSession: CombatSession | null = null;
   let combatScene: CombatScene | null = null;
   let combatHud: CombatHud | null = null;
@@ -323,6 +426,7 @@ function init(): void {
   let worldMapSession: WorldMapSession | null = null;
   let combatEndedHandled = false;
   const worldMapScreen = new WorldMapScreen(document.body);
+  const districtMapScreen = new StrategicMapScreen(document.body, "district");
   const narratorPanel = new NarratorPanel(document.body);
   const combatLogPanel = new CombatLogPanel(document.body);
   let worldEventUnsubscribe: (() => void) | null = null;
@@ -519,6 +623,7 @@ function init(): void {
     combatLogPanel.hide();
     combatLogPanel.clear();
     combatHud?.destroy();
+    combatScene?.destroy(scene);
     combatSession = null;
     combatScene = null;
     combatHud = null;
@@ -584,7 +689,7 @@ function init(): void {
   function handleCombatEnded(outcome: "victory" | "defeat"): void {
     if (!worldMapSession || !combatSession) return;
 
-    const updated = applyCombatResultToCampaign(
+    let updated = applyCombatResultToCampaign(
       worldMapSession.getState(),
       combatSession.getState(),
     );
@@ -592,11 +697,11 @@ function init(): void {
     teardownCombat();
 
     if (outcome === "victory") {
+      const areaSiteId = updated.currentAreaSiteId ?? updated.currentSiteId;
+      updated = markSiteHeld(updated, activeWorld.interiorGraph ?? activeWorld.worldGraph, areaSiteId);
       worldMapSession.replaceState(updated);
       persistCampaign(updated);
-      worldMapScreen.show();
-      narratorPanel.show();
-      showCurrentSiteNarration(worldMapSession.getState().currentSiteId);
+      showDistrictArea(areaSiteId, { afterVictory: true });
       refreshWorldOverlay();
       return;
     }
@@ -607,15 +712,104 @@ function init(): void {
     refreshWorldOverlay();
   }
 
-  function enterSiteFromWorldMap(): void {
-    if (!worldMapSession) return;
-    worldMapScreen.hide();
-    const config = buildEncounterForSite(
-      worldMapSession.getState(),
-      M3_DEMO_GRAPH,
-      M4_DEMO_ENCOUNTERS,
-    );
+  function returnToWorldMapFromDistrict(): void {
+    if (!worldMapSession || !activeWorld.district) return;
+    const errors = validateExitDistrict(worldMapSession.getState(), activeWorld.district);
+    if (errors.length > 0) return;
+
+    const next = exitDistrictToWorld(worldMapSession.getState());
+    worldMapSession.replaceState(next);
+    persistCampaign(next);
+    districtMapScreen.hide();
+    worldMapScreen.show();
+    narratorPanel.show();
+    showCurrentSiteNarration(next.currentSiteId);
+    refreshWorldOverlay();
+  }
+
+  function beginCombatInDistrict(): void {
+    if (!worldMapSession || !activeWorld.interiorGraph) return;
+    const state = worldMapSession.getState();
+    const areaSiteId = state.currentAreaSiteId;
+    if (!areaSiteId) return;
+    const site = activeWorld.interiorGraph.sites.find((s) => s.id === areaSiteId);
+    if (!site || !shouldFightOnArrival(state, site)) return;
+
+    const combatState = { ...state, currentSiteId: areaSiteId };
+    districtMapScreen.hide();
+    const config = buildEncounterForSite(combatState, activeWorld.interiorGraph, activeWorld.encounters);
     beginCombatSession(config);
+  }
+
+  function handleDistrictAreaArrived(siteId: SiteId): void {
+    if (!worldMapSession || !activeWorld.interiorGraph) return;
+    const site = activeWorld.interiorGraph.sites.find((s) => s.id === siteId);
+    if (site && shouldFightOnArrival(worldMapSession.getState(), site)) {
+      beginCombatInDistrict();
+    }
+  }
+
+  function showDistrictArea(areaSiteId: SiteId, options?: { afterVictory?: boolean }): void {
+    if (!worldMapSession || !activeWorld.district || !activeWorld.interiorGraph) return;
+    const state = worldMapSession.getState();
+    const site = activeWorld.interiorGraph.sites.find((s) => s.id === areaSiteId);
+    if (!site) return;
+
+    worldMapScreen.hide();
+    narratorPanel.hide();
+
+    districtMapScreen.bindDistrict(worldMapSession, activeWorld.interiorGraph, {
+      districtLabel: activeWorld.district.label,
+      canReturnToWorldMap: () =>
+        isDistrictEntrance(activeWorld.district!, worldMapSession!.getState().currentAreaSiteId!),
+      onReturnToWorldMap: returnToWorldMapFromDistrict,
+      onAreaArrived: handleDistrictAreaArrived,
+      onTravel: (targetSiteId) => {
+        const result = travelWithinDistrict(
+          worldMapSession!.getState(),
+          activeWorld.interiorGraph!,
+          targetSiteId,
+        );
+        if (!result.ok) return false;
+        worldMapSession!.replaceState(result.state);
+        persistCampaign(result.state);
+        return true;
+      },
+    });
+    districtMapScreen.show();
+
+    if (!options?.afterVictory && shouldFightOnArrival(state, site)) {
+      beginCombatInDistrict();
+    }
+  }
+
+  function enterDistrictFromWorld(): void {
+    if (!worldMapSession || !activeWorld.district || !activeWorld.interiorGraph) return;
+    const state = worldMapSession.getState();
+    const worldSite = activeWorld.worldGraph.sites.find((s) => s.id === state.currentSiteId);
+    if (!worldSite?.districtId) return;
+
+    const next = enterDistrict(
+      state,
+      activeWorld.district,
+      activeWorld.interiorGraph,
+      worldSite.id,
+    );
+    worldMapSession.replaceState(next);
+    persistCampaign(next);
+    showDistrictArea(next.currentAreaSiteId!);
+  }
+
+  function showActiveMapLayer(): void {
+    if (!worldMapSession) return;
+    const state = worldMapSession.getState();
+    if (state.mapLayer === "district" && state.currentAreaSiteId) {
+      showDistrictArea(state.currentAreaSiteId);
+      return;
+    }
+    worldMapScreen.show();
+    narratorPanel.show();
+    showCurrentSiteNarration(state.currentSiteId);
   }
 
   function startWorldMap(party: PartyDraft, initialState?: CampaignState): void {
@@ -626,14 +820,24 @@ function init(): void {
     worldEventUnsubscribe?.();
     worldEventUnsubscribe = null;
 
-    worldMapSession = new WorldMapSession(M3_DEMO_GRAPH, party, initialState);
-    worldMapScreen.bind(worldMapSession, M3_DEMO_GRAPH, {
-      onEnterSite: enterSiteFromWorldMap,
+    if (initialState) {
+      activeWorld = resolveWorldContent(initialState.graphId, DEFAULT_DISTRICT_SEED);
+    } else {
+      activeWorld = buildGeneratedWorld(DEFAULT_DISTRICT_SEED);
+    }
+
+    const graph = activeWorld.worldGraph;
+    const campaign =
+      initialState ??
+      createCampaignState(party, graph, activeWorld.interiorGraph ?? undefined);
+
+    worldMapSession = new WorldMapSession(graph, party, campaign);
+    worldMapScreen.bind(worldMapSession, graph, {
+      onEnterDistrict: enterDistrictFromWorld,
+      interiorGraph: activeWorld.interiorGraph,
     });
-    worldMapScreen.show();
     combatLogPanel.hide();
-    narratorPanel.show();
-    showCurrentSiteNarration(worldMapSession.getState().currentSiteId);
+    showActiveMapLayer();
     persistCampaign(worldMapSession.getState());
     refreshWorldOverlay();
 
@@ -645,8 +849,25 @@ function init(): void {
     worldEventUnsubscribe = worldMapSession.subscribeEvents(handleWorldNarration);
 
     if (import.meta.env.DEV) {
-      (window as unknown as { __emberwatch: { worldSession: WorldMapSession } }).__emberwatch = {
+      const ew = window as unknown as {
+        __emberwatch: {
+          worldSession: WorldMapSession;
+          generateDistrict: (seed?: number) => void;
+          activeWorld: ActiveWorldContent;
+        };
+      };
+      ew.__emberwatch = {
         worldSession: worldMapSession,
+        activeWorld,
+        generateDistrict: (seed = Math.floor(Math.random() * 100000)) => {
+          activeWorld = buildGeneratedWorld(seed);
+          const fresh = createCampaignState(
+            party,
+            activeWorld.worldGraph,
+            activeWorld.interiorGraph ?? undefined,
+          );
+          startWorldMap(party, fresh);
+        },
       };
     }
   }
@@ -680,7 +901,7 @@ function init(): void {
       startCombat,
     };
     console.info(
-      "[EMBERWATCH] M5 — narration panel, story beats, world map, combat; F3/~ overlay",
+      "[EMBERWATCH] M6 — generated district, reclamation loop, world map, combat; F3/~ overlay",
       { manifestSummary },
     );
   }

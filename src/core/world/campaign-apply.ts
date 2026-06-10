@@ -1,11 +1,12 @@
 import type { BeatId, EntityId, SiteId } from "../../shared/ids";
 import type { GameEvent } from "../types";
-import { getNeighbors } from "./validate";
+import { canReachSite } from "./pathfinding";
 import type { CampaignState, WorldGraph } from "./types";
 
 export type CampaignEffect =
   | { kind: "TravelTo"; effectId: string; targetSiteId: SiteId }
-  | { kind: "RecordStoryBeat"; effectId: string; beatId: BeatId; siteId: SiteId };
+  | { kind: "RecordStoryBeat"; effectId: string; beatId: BeatId; siteId: SiteId }
+  | { kind: "MarkSiteHeld"; effectId: string; siteId: SiteId };
 
 export interface CampaignApplyContext {
   seq: number;
@@ -24,6 +25,7 @@ function cloneCampaign(state: CampaignState): CampaignState {
     party: {
       members: state.party.members.map((m) => ({ ...m })) as CampaignState["party"]["members"],
     },
+    siteControl: { ...state.siteControl },
     eventLog: [...state.eventLog],
   };
 }
@@ -65,6 +67,15 @@ function buildCampaignEvent(
           from_effect: effect.effectId,
         },
       };
+    case "MarkSiteHeld":
+      return {
+        ...base,
+        type: "SiteHeld",
+        payload: {
+          site_id: effect.siteId,
+          from_effect: effect.effectId,
+        },
+      };
   }
 }
 
@@ -74,6 +85,9 @@ function reduceCampaign(effect: CampaignEffect, draft: CampaignState): void {
       draft.currentSiteId = effect.targetSiteId;
       break;
     case "RecordStoryBeat":
+      break;
+    case "MarkSiteHeld":
+      draft.siteControl = { ...draft.siteControl, [effect.siteId]: "held" };
       break;
   }
 }
@@ -95,12 +109,14 @@ export function validateTravelTo(
   graph: WorldGraph,
   targetSiteId: SiteId,
 ): string[] {
+  if (state.mapLayer === "district") {
+    return ["cannot travel on world map while inside a district"];
+  }
   if (state.graphId !== graph.id) {
     return [`campaign graphId mismatch: ${state.graphId} vs ${graph.id}`];
   }
-  const neighbors = getNeighbors(graph, state.currentSiteId);
-  if (!neighbors.includes(targetSiteId)) {
-    return [`${targetSiteId} is not a neighbor of ${state.currentSiteId}`];
+  if (!canReachSite(state, graph, targetSiteId)) {
+    return [`no route to ${targetSiteId} through cleared or safe sites`];
   }
   return [];
 }

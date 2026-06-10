@@ -17,8 +17,19 @@ export function validateWorldGraph(graph: WorldGraph): ValidationResult {
     }
     siteIds.add(site.id);
 
-    if (!site.encounterId || !site.encounterId.startsWith("enc_")) {
-      errors.push(`site ${site.id} missing valid encounterId`);
+    if (site.districtId) {
+      if (site.encounterId) {
+        errors.push(`district entry ${site.id} must not have an encounterId`);
+      }
+    } else {
+      const kind = site.siteKind ?? "combat";
+      if (kind === "combat") {
+        if (!site.encounterId || !site.encounterId.startsWith("enc_")) {
+          errors.push(`site ${site.id} missing valid encounterId`);
+        }
+      } else if (site.encounterId) {
+        errors.push(`site ${site.id} (${kind}) must not have an encounterId`);
+      }
     }
 
     if (typeof site.mapX !== "number" || typeof site.mapY !== "number") {
@@ -96,6 +107,8 @@ export function validateWorldGraphEncounters(
   const errors: string[] = [];
 
   for (const site of graph.sites) {
+    const kind = site.siteKind ?? "combat";
+    if (kind !== "combat" || !site.encounterId) continue;
     if (!encounters[site.encounterId]) {
       errors.push(`site ${site.id} references unknown encounter: ${site.encounterId}`);
     }

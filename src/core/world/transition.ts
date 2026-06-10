@@ -14,6 +14,9 @@ export function buildEncounterForSite(
     throw new Error(`unknown site: ${campaign.currentSiteId}`);
   }
 
+  if (!site.encounterId) {
+    throw new Error(`site ${site.id} has no encounter`);
+  }
   const template = encounters[site.encounterId];
   if (!template) {
     throw new Error(`unknown encounter: ${site.encounterId}`);

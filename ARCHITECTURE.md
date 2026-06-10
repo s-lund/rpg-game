@@ -60,14 +60,26 @@ Append-only list. Consumers read; they never write back.
 - The **narrator** turns events into prose.
 - Both can be absent, swapped, or rebuilt with zero core changes. Replaying the log reconstructs the entire game state.
 
-## Two map scales
+## Map layers (strategic vs tactical)
 
-The game has two map scales, and the transition between them is its own feature:
+Navigation uses **two presentation paradigms**, with **three layers** in the Emberwatch slice:
 
-- **World map (strategic):** an overworld of sites (the city districts, plus travel points) the party moves between. Represented as a graph of `sites` with party position and travel edges. No tactical grid here.
-- **Combat / local map (tactical):** the tile-grid map you drop into when you enter a site or hit an encounter. This is the area model below.
+| Layer | Scale | Data | Renderer |
+|-------|-------|------|----------|
+| **World map** | Strategic | `WorldGraph` of frontier sites (districts, travel points) | `StrategicMapScreen` (`mapLayer: world`) |
+| **District interior** | Strategic | `WorldGraph` of areas inside one district (gate, ward, market, …) | Same `StrategicMapScreen` (`mapLayer: district`) — same map UI as world; different enter/exit and encounter rules |
+| **Combat** | Tactical | Per-area `TileGrid` + encounter template | Iso `CombatScene` |
 
-**Transition contract:** selecting a site (or triggering an encounter) on the world map loads that site's local map, hands the current party state to the combat core, and on combat end returns control and updated party state to the world map. The party and its state are owned by the core and survive the transition; the two renderers are just two views.
+- **Strategic maps** are graphs with `mapX`/`mapY`, travel edges, and an animated party token. No tactical grid.
+- **Tactical maps** are the tile grids you fight on. Tile grids are validated and stored per area (for combat layout and future local exploration); M6 drops into combat on hostile arrival rather than free-roaming the grid first.
+
+**Transition contracts:**
+
+1. **World → district:** at a world site with a `districtId`, **Enter** sets `mapLayer: district`, loads the district's interior graph, and places the party at the district entrance area. Only the entrance area can **Return to world map**.
+2. **District → combat:** arriving at a hostile area (or entering combat from there) loads that area's tactical grid and encounter; victory marks the area **held** and returns to the **district strategic map** (party stays in the district).
+3. **World travel (M3):** `travelTo` on the world graph; pathfinding may skip through held/safe sites. District interior uses the same path rules via `travelWithinDistrict`.
+
+Party and campaign state are owned by the core and survive every transition; renderers are read-only views over that state.
 
 ## Map data model (local / combat maps)
 
@@ -109,9 +121,10 @@ The LLM is good at *contents and variety* (what's in a room, encounter flavor) g
 
 ## Assets, placeholders, and mock flagging
 
-Final assets are produced outside the loop (Tripo/Meshy → GLB) and added later, so insertion must be frictionless and the loop must never stall waiting for art.
+Final assets are produced outside the loop (Tripo/Meshy → GLB, illustrated map PNGs/WebPs) and added later, so insertion must be frictionless and the loop must never stall waiting for art.
 
 - **Asset manifest.** One registry maps each asset `id` to its files: `{ placeholder?, real? }`. The renderer shows `real` if present, else `placeholder`, else a primitive. Adding or replacing an asset is a manifest edit plus a file drop — no code change.
+- **Content packs (M8 target).** A *pack* is swappable presentation + scenario data, not a fork of the engine: world graph, district definitions (generated or authored), encounter templates, story-beat hooks, labels, and manifest entries (strategic map backgrounds, marker icons, tactical GLBs). The pure core reads graphs and rules; renderers read the manifest. **Fixed illustrated maps** and **procedurally generated layouts** are both supported — topology and reclamation stay in validated graph data; artwork is a skin anchored to site `mapX`/`mapY`. Shipping a different game is mostly a new pack, not a rewrite.
 - **Placeholders are cheap and need not match the final medium.** A 32×32 image on a billboard quad, or a flat-colored box, is a fine stand-in for a goblin whose final form is a rigged GLB.
 - **Mock flagging.** A dev-only overlay reads the manifest (and the mock-data providers below) and badges anything that is a placeholder, mock, or stub, so the human can tell real from stand-in at a glance. Off in release builds.
 - **Asset requests.** When the loop needs an asset that doesn't exist, it appends a structured row to `ASSETS_NEEDED.md` (`id, type, dimensions, view, one-line description`), then proceeds on a flagged placeholder. Fulfilling a request is a drop-in.
@@ -123,4 +136,4 @@ Final assets are produced outside the loop (Tripo/Meshy → GLB) and added later
 - **Loading assets:** three.js `GLTFLoader` reads Tripo/Meshy GLB exports natively, including rig + animation clips.
 - **Picking / input:** three.js raycasting from the iso camera for tile/entity selection.
 - **Navigation:** Fallout-style free isometric exploration; turn-based action-point movement on the *same* view when initiative triggers. Decide the explore↔combat mode transition deliberately — it drives the AP economy and pathfinding.
-- **Placeholder-first:** primitive meshes (boxes/capsules) + flat colored tiles until the slice plays well. Real GLB assets are the final phase, dropped behind the event-log seam as reward sessions. Defer character art; worst effort-to-payoff at slice stage.
+- **Placeholder-first:** primitive meshes (boxes/capsules) + flat colored tiles until the slice plays well. Strategic map illustration lands in M8; tactical GLBs in M9 — both behind the event-log seam. Defer character art; worst effort-to-payoff at slice stage.
