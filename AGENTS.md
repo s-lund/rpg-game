@@ -44,7 +44,7 @@ Load-bearing. Breaking any of these is a defect even if tests pass. If a task se
 
 - **Keep it simple.** Write the simplest thing that passes the current milestone's tests. No speculative abstraction, config, or layers before they're needed. The architecture in `ARCHITECTURE.md` is the one sanctioned up-front structure — don't add more, and don't shortcut it either (no direct state mutation in the name of "simpler"). Comments explain non-obvious *why*, never restate the code.
 - **Tests must be real.** Test behavior and logic thoroughly (core, effects, validators); skip ceremonial tests for trivial glue. Every test has meaningful assertions and must fail if the code it covers breaks — no `assert true`, no assertion-free tests, no mocking away the thing under test. Run the full suite every loop. Periodically run mutation testing (Stryker) on the core: a surviving mutant means a test is vacuous — fix it.
-- **Interface first-class, art deferred.** The interface (HUD, controls, state readouts, menus) must be clean, legible, and usable from M1, even on placeholder graphics. World, district, and battle-map art plus swappable content packs land in M8; combat rules depth (saves, resistance, spell slots) in M9; tactical character GLB art in M10. Usability now; asset polish last.
+- **Interface first-class, art deferred.** The interface (HUD, controls, state readouts, menus) must be clean, legible, and usable from M1, even on placeholder graphics. World, district, and battle-map art plus swappable content packs landed in M8; combat rules depth (saves, resistance/weakness, spell slots, path-aware Step) landed in M9; tactical character GLB art (figurines, facing, animations) is M18. Usability now; asset polish last.
 - **Flag everything mocked.** Anything not real — placeholder asset, mock data, stubbed system — is visibly badged in a dev overlay so the human always knows whether they're seeing the real thing or a stand-in. The overlay exists from M1.
 - **Never block on a missing asset.** Use a flagged placeholder and append a structured request to `ASSETS_NEEDED.md` (`id, type, dimensions, view, one-line description` — e.g. `goblin_token, 32×32 jpg, top-down, green humanoid`). Adding a real asset is a file drop + manifest line, never a code change.
 
@@ -83,4 +83,4 @@ npm run dev      # local dev server, opens the playable slice
 
 ## Current phase
 
-See `PROGRESS.md` (current milestone) and `ROADMAP.md` (full plan). Do not work ahead. Map presentation and content packs are M8; combat rules depth is M9; tactical character GLBs are M10.
+See `PROGRESS.md` (current milestone) and `ROADMAP.md` (full plan). Do not work ahead. M0–M9 are done and accepted; the remaining plan is M10–M20 (action economy → LoS/cover → tactical AI → strategic pressure → equipment/progression/story → content/art/QoL). Tactical character GLBs are M18.

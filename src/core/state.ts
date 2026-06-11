@@ -24,6 +24,13 @@ function blueprintToEntity(blueprint: EntityBlueprint, team: Entity["team"]): En
     damageType: blueprint.damageType ?? (isRogue ? "slashing" : "slashing"),
     strikeRange: blueprint.strikeRange ?? 1,
     knownSpells: (blueprint.knownSpells ?? []) as SpellId[],
+    saves: blueprint.saves ? { ...blueprint.saves } : { fortitude: 0, reflex: 0, will: 0 },
+    spellDc: blueprint.spellDc ?? 10,
+    ...(blueprint.resistances ? { resistances: { ...blueprint.resistances } } : {}),
+    ...(blueprint.weaknesses ? { weaknesses: { ...blueprint.weaknesses } } : {}),
+    ...(blueprint.spellSlots
+      ? { spellSlots: blueprint.spellSlots.map((slot) => ({ ...slot })) }
+      : {}),
     conditions: [],
     actionPoints: downed ? 0 : DEFAULT_ACTION_POINTS,
     maxActionPoints: DEFAULT_ACTION_POINTS,

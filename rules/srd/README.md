@@ -17,4 +17,15 @@ Machine-readable tables live in [`m2-subset.json`](m2-subset.json). Core code im
 | `background-criminal.md` | Fixed Rogue background |
 | `classes-fighter.md` | Fighter L1 proficiencies and HP |
 | `classes-rogue.md` | Rogue L1 proficiencies, sneak attack |
-| `m2-subset.json` | Curated tables for validation and derivation |
+| `classes-wizard.md` | Wizard L1 proficiencies, spellcasting |
+| `classes-cleric.md` | Cleric L1 proficiencies, spellcasting |
+| `spell-ray-of-frost.md` | Ray of Frost cantrip (M7) |
+| `spell-heal.md` | Heal — rank-1 leveled spell on slots from M9 |
+| `spell-breathe-fire.md` | Breathe Fire — basic Reflex save, cone template (M9) |
+| `saving-throws.md` | Save formula, class proficiencies, degrees of success, basic saves (M9) |
+| `resistance-weakness.md` | Weakness/resistance math and ordering (M9) |
+| `spell-slots.md` | Prepared casting, L1 slots per day, interim recovery (M9) |
+| `cleric-divine-font.md` | Divine font — 4 Heal-only bonus slots (M9) |
+| `m2-subset.json` | Curated tables for validation and derivation (M2) |
+| `m7-subset.json` | Curated tables — 4-class party, first spells (M7) |
+| `m9-subset.json` | Curated tables — saves, slots, Breathe Fire, divine font (M9, current) |

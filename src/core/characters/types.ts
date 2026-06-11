@@ -1,4 +1,5 @@
 import type { EntityId } from "../../shared/ids";
+import type { SpellSlot } from "../types";
 import type { AbilityId, ClassId, SkillId } from "./subset";
 
 export interface CharacterDraft {
@@ -9,6 +10,8 @@ export interface CharacterDraft {
   trainedSkills: SkillId[];
   /** Runtime HP carried across world↔combat transitions. */
   currentHp: number;
+  /** Prepared slot state carried across transitions (M9). Absent → fresh preparation. */
+  spellSlots?: SpellSlot[];
 }
 
 export type PartyDraft = {

@@ -2,26 +2,89 @@ import type { EntityBlueprint } from "../types";
 import { M2_DEMO_ENEMIES, M2_MAP_HEIGHT, M2_MAP_WIDTH } from "../scenarios/m1-demo";
 import { abilityModifier, proficiencyBonus } from "./abilities";
 import {
-  M7_SUBSET,
+  M9_SUBSET,
+  SAVE_ABILITIES,
   clericRules,
   fighterRules,
   rogueRules,
   wizardRules,
   type AbilityId,
   type ClassId,
+  type ClassRulesBase,
   type ProficiencyRank,
+  type SpellId,
 } from "./subset";
 import type { CharacterDraft, PartyDraft } from "./types";
-import type { DamageType, InitialStateConfig } from "../types";
+import type { DamageType, InitialStateConfig, SaveKind, SpellSlot } from "../types";
+
+function deriveSaves(
+  rules: ClassRulesBase,
+  abilities: CharacterDraft["abilities"],
+): Record<SaveKind, number> {
+  const level = M9_SUBSET.level;
+  const saves = {} as Record<SaveKind, number>;
+  for (const kind of ["fortitude", "reflex", "will"] as const) {
+    const rank = rules.saves[kind] as ProficiencyRank;
+    const ability = SAVE_ABILITIES[kind];
+    saves[kind] =
+      proficiencyBonus(rank, level, M9_SUBSET.proficiencyBonus) +
+      abilityModifier(abilities[ability]);
+  }
+  return saves;
+}
+
+function makeSlots(
+  classId: ClassId,
+  count: number,
+  spellId: SpellId,
+  fontCount = 0,
+  fontSpellId?: SpellId,
+): SpellSlot[] {
+  const slots: SpellSlot[] = [];
+  for (let i = 1; i <= count; i++) {
+    slots.push({ id: `${classId}_slot_${i}`, rank: 1, preparedSpellId: spellId, expended: false });
+  }
+  for (let i = 1; i <= fontCount; i++) {
+    slots.push({
+      id: `${classId}_font_${i}`,
+      rank: 1,
+      preparedSpellId: fontSpellId ?? spellId,
+      expended: false,
+      fontOnly: true,
+    });
+  }
+  return slots;
+}
+
+/** Fresh daily preparation per class rules (rules/srd/spell-slots.md). */
+export function defaultPreparedSlots(classId: ClassId): SpellSlot[] | undefined {
+  if (classId === "wizard") {
+    const rules = wizardRules();
+    return makeSlots("wizard", rules.spellSlots.rank1, rules.spellSlots.preparedSpellId);
+  }
+  if (classId === "cleric") {
+    const rules = clericRules();
+    return makeSlots(
+      "cleric",
+      rules.spellSlots.rank1,
+      rules.spellSlots.preparedSpellId,
+      rules.divineFont.slots,
+      rules.divineFont.spellId,
+    );
+  }
+  return undefined;
+}
 
 /** Map validated character draft → combat entity blueprint (rules/srd/classes-*.md). */
 export function deriveEntityBlueprint(
   draft: CharacterDraft,
   spawn: { x: number; y: number },
 ): EntityBlueprint {
-  const level = M7_SUBSET.level;
+  const level = M9_SUBSET.level;
   const conMod = abilityModifier(draft.abilities.con);
   const dexMod = abilityModifier(draft.abilities.dex);
+  // Carried slot state (expended across fights) wins over a fresh preparation.
+  const spellSlots = draft.spellSlots ?? defaultPreparedSlots(draft.classId);
 
   if (draft.classId === "wizard") {
     const rules = wizardRules();
@@ -31,11 +94,19 @@ export function deriveEntityBlueprint(
       proficiencyBonus(
         rules.spellAttackProficiency as ProficiencyRank,
         level,
-        M7_SUBSET.proficiencyBonus,
+        M9_SUBSET.proficiencyBonus,
       ) + spellMod;
+    const spellDc =
+      10 +
+      proficiencyBonus(
+        rules.spellDcProficiency as ProficiencyRank,
+        level,
+        M9_SUBSET.proficiencyBonus,
+      ) +
+      spellMod;
     const dexToArmor = Math.min(dexMod, rules.armor.maxDexBonus);
     const ac = 10 + dexToArmor + rules.armor.acBonus + rules.armor.shieldBonus;
-    const maxHp = M7_SUBSET.fixedAncestry.hpBonus + rules.hpPerLevel + conMod;
+    const maxHp = M9_SUBSET.fixedAncestry.hpBonus + rules.hpPerLevel + conMod;
 
     return {
       id: draft.id,
@@ -48,18 +119,30 @@ export function deriveEntityBlueprint(
       ac,
       attackBonus: 0,
       spellAttackBonus,
+      spellDc,
+      saves: deriveSaves(rules, draft.abilities),
       damage: { count: 0, sides: 4, modifier: 0 },
       damageType: "cold",
       strikeRange: 0,
       knownSpells: [...rules.knownSpells],
+      spellSlots,
     };
   }
 
   if (draft.classId === "cleric") {
     const rules = clericRules();
+    const spellMod = abilityModifier(draft.abilities[rules.spellcastingAbility]);
+    const spellDc =
+      10 +
+      proficiencyBonus(
+        rules.spellDcProficiency as ProficiencyRank,
+        level,
+        M9_SUBSET.proficiencyBonus,
+      ) +
+      spellMod;
     const dexToArmor = Math.min(dexMod, rules.armor.maxDexBonus);
     const ac = 10 + dexToArmor + rules.armor.acBonus + rules.armor.shieldBonus;
-    const maxHp = M7_SUBSET.fixedAncestry.hpBonus + rules.hpPerLevel + conMod;
+    const maxHp = M9_SUBSET.fixedAncestry.hpBonus + rules.hpPerLevel + conMod;
 
     return {
       id: draft.id,
@@ -72,10 +155,13 @@ export function deriveEntityBlueprint(
       ac,
       attackBonus: 0,
       spellAttackBonus: 0,
+      spellDc,
+      saves: deriveSaves(rules, draft.abilities),
       damage: { count: 0, sides: 8, modifier: 0 },
       damageType: "positive",
       strikeRange: 0,
       knownSpells: [...rules.knownSpells],
+      spellSlots,
     };
   }
 
@@ -89,12 +175,12 @@ export function deriveEntityBlueprint(
     proficiencyBonus(
       classRules.attackProficiency as ProficiencyRank,
       level,
-      M7_SUBSET.proficiencyBonus,
+      M9_SUBSET.proficiencyBonus,
     ) + attackMod;
 
   const dexToArmor = Math.min(dexMod, classRules.armor.maxDexBonus);
   const ac = 10 + dexToArmor + classRules.armor.acBonus + classRules.armor.shieldBonus;
-  const maxHp = M7_SUBSET.fixedAncestry.hpBonus + classRules.hpPerLevel + conMod;
+  const maxHp = M9_SUBSET.fixedAncestry.hpBonus + classRules.hpPerLevel + conMod;
 
   return {
     id: draft.id,
@@ -107,6 +193,7 @@ export function deriveEntityBlueprint(
     ac,
     attackBonus,
     spellAttackBonus: 0,
+    saves: deriveSaves(classRules, draft.abilities),
     damage: {
       count: classRules.defaultWeapon.damage.count,
       sides: classRules.defaultWeapon.damage.sides,
@@ -122,7 +209,7 @@ export function derivePartyBlueprints(
   party: PartyDraft,
   spawns?: { x: number; y: number }[],
 ): EntityBlueprint[] {
-  return M7_SUBSET.partySlots.map((slot, index) => {
+  return M9_SUBSET.partySlots.map((slot, index) => {
     const member = party.members.find((m) => m.classId === slot.classId);
     if (!member) {
       throw new Error(`party missing ${slot.classId}`);
@@ -141,5 +228,5 @@ export function buildEncounterConfig(party: PartyDraft): InitialStateConfig {
 }
 
 export function slotClassIds(): ClassId[] {
-  return M7_SUBSET.partySlots.map((s) => s.classId as ClassId);
+  return M9_SUBSET.partySlots.map((s) => s.classId as ClassId);
 }

@@ -1,11 +1,39 @@
 import type { EncounterId } from "../../shared/ids";
-import type { DamageType, EncounterTemplate, EntityBlueprint } from "../../core/index";
+import type { DamageType, EncounterTemplate, EntityBlueprint, SaveKind } from "../../core/index";
 
 type FoeRole = "melee" | "skirmisher" | "bruiser" | "boss";
+
+/** Elemental theming (M9): ember creatures resist fire / fear cold; drowned the reverse. */
+type FoeTheme = "ember" | "drowned";
 
 interface FoeOptions {
   role?: FoeRole;
   damageType?: DamageType;
+  theme?: FoeTheme;
+}
+
+/** Tier-scaled save modifiers by role — skirmishers dodge, bruisers endure. */
+function foeSaves(role: FoeRole, tier: number): Record<SaveKind, number> {
+  switch (role) {
+    case "skirmisher":
+      return { fortitude: 2 + tier, reflex: 5 + tier, will: 2 + tier };
+    case "bruiser":
+      return { fortitude: 5 + tier, reflex: 2 + tier, will: 3 + tier };
+    case "boss":
+      return { fortitude: 5 + tier, reflex: 4 + tier, will: 5 + tier };
+    default:
+      return { fortitude: 4 + tier, reflex: 3 + tier, will: 2 + tier };
+  }
+}
+
+function foeTheme(theme?: FoeTheme): Pick<EntityBlueprint, "resistances" | "weaknesses"> {
+  if (theme === "ember") {
+    return { resistances: { fire: 3 }, weaknesses: { cold: 2 } };
+  }
+  if (theme === "drowned") {
+    return { resistances: { cold: 3 }, weaknesses: { fire: 2 } };
+  }
+  return {};
 }
 
 /** Tier-scaled foe stats; same curve as the M6 generator so difficulty reads consistently. */
@@ -18,6 +46,10 @@ function foe(
   options?: FoeOptions,
 ): EntityBlueprint {
   const role = options?.role ?? "melee";
+  const shared = {
+    saves: foeSaves(role, tier),
+    ...foeTheme(options?.theme),
+  };
   switch (role) {
     case "skirmisher":
       return {
@@ -31,6 +63,7 @@ function foe(
         strikeRange: 4,
         damageType: options?.damageType ?? "piercing",
         damage: { count: 1, sides: 6, modifier: 0 },
+        ...shared,
       };
     case "bruiser":
       return {
@@ -44,6 +77,7 @@ function foe(
         strikeRange: 1,
         damageType: options?.damageType ?? "slashing",
         damage: { count: 1, sides: 8, modifier: 2 },
+        ...shared,
       };
     case "boss":
       return {
@@ -57,6 +91,7 @@ function foe(
         strikeRange: 1,
         damageType: options?.damageType ?? "slashing",
         damage: { count: 1, sides: 10, modifier: 2 },
+        ...shared,
       };
     default:
       return {
@@ -70,6 +105,7 @@ function foe(
         strikeRange: 1,
         damageType: options?.damageType ?? "slashing",
         damage: { count: 1, sides: 6, modifier: tier >= 2 ? 1 : 0 },
+        ...shared,
       };
   }
 }
@@ -82,8 +118,8 @@ export const EMBERWATCH_ENCOUNTERS: Record<EncounterId, EncounterTemplate> = {
     height: 10,
     battleMapId: "bmap_ashen_road",
     enemies: [
-      foe("ent_road_wretch_1", "Road Wretch", 1, 10, 3, { role: "skirmisher" }),
-      foe("ent_ash_bandit_1", "Ash Bandit", 1, 11, 4),
+      foe("ent_road_wretch_1", "Road Wretch", 1, 10, 3, { role: "skirmisher", theme: "ember" }),
+      foe("ent_ash_bandit_1", "Ash Bandit", 1, 11, 4, { theme: "ember" }),
     ],
   },
   enc_watchers_bridge: {
@@ -116,8 +152,8 @@ export const EMBERWATCH_ENCOUNTERS: Record<EncounterId, EncounterTemplate> = {
     height: 10,
     battleMapId: "bmap_quay_docks",
     enemies: [
-      foe("ent_drowned_marauder_1", "Drowned Marauder", 1, 5, 2),
-      foe("ent_tide_skirmisher_1", "Tide Skirmisher", 1, 6, 4, { role: "skirmisher" }),
+      foe("ent_drowned_marauder_1", "Drowned Marauder", 1, 5, 2, { theme: "drowned" }),
+      foe("ent_tide_skirmisher_1", "Tide Skirmisher", 1, 6, 4, { role: "skirmisher", theme: "drowned" }),
     ],
   },
   enc_pier_row: {
@@ -126,9 +162,9 @@ export const EMBERWATCH_ENCOUNTERS: Record<EncounterId, EncounterTemplate> = {
     height: 10,
     battleMapId: "bmap_quay_docks",
     enemies: [
-      foe("ent_pier_marauder_1", "Drowned Marauder", 2, 4, 3),
-      foe("ent_pier_skirmisher_1", "Tide Skirmisher", 2, 8, 2, { role: "skirmisher" }),
-      foe("ent_pier_bruiser_1", "Quay Bruiser", 2, 5, 5, { role: "bruiser" }),
+      foe("ent_pier_marauder_1", "Drowned Marauder", 2, 4, 3, { theme: "drowned" }),
+      foe("ent_pier_skirmisher_1", "Tide Skirmisher", 2, 8, 2, { role: "skirmisher", theme: "drowned" }),
+      foe("ent_pier_bruiser_1", "Quay Bruiser", 2, 5, 5, { role: "bruiser", theme: "drowned" }),
     ],
   },
   enc_salt_warehouse: {
@@ -137,9 +173,9 @@ export const EMBERWATCH_ENCOUNTERS: Record<EncounterId, EncounterTemplate> = {
     height: 10,
     battleMapId: "bmap_salt_warehouse",
     enemies: [
-      foe("ent_warehouse_marauder_1", "Drowned Marauder", 2, 3, 3),
-      foe("ent_warehouse_marauder_2", "Drowned Marauder", 2, 8, 3),
-      foe("ent_warehouse_bruiser_1", "Quay Bruiser", 2, 6, 5, { role: "bruiser" }),
+      foe("ent_warehouse_marauder_1", "Drowned Marauder", 2, 3, 3, { theme: "drowned" }),
+      foe("ent_warehouse_marauder_2", "Drowned Marauder", 2, 8, 3, { theme: "drowned" }),
+      foe("ent_warehouse_bruiser_1", "Quay Bruiser", 2, 6, 5, { role: "bruiser", theme: "drowned" }),
     ],
   },
   enc_sunken_chapel: {
@@ -148,9 +184,9 @@ export const EMBERWATCH_ENCOUNTERS: Record<EncounterId, EncounterTemplate> = {
     height: 10,
     battleMapId: "bmap_sunken_chapel",
     enemies: [
-      foe("ent_chapel_skirmisher_1", "Tide Skirmisher", 2, 4, 3, { role: "skirmisher" }),
-      foe("ent_chapel_skirmisher_2", "Tide Skirmisher", 2, 7, 3, { role: "skirmisher" }),
-      foe("ent_chapel_marauder_1", "Drowned Marauder", 2, 3, 1),
+      foe("ent_chapel_skirmisher_1", "Tide Skirmisher", 2, 4, 3, { role: "skirmisher", theme: "drowned" }),
+      foe("ent_chapel_skirmisher_2", "Tide Skirmisher", 2, 7, 3, { role: "skirmisher", theme: "drowned" }),
+      foe("ent_chapel_marauder_1", "Drowned Marauder", 2, 3, 1, { theme: "drowned" }),
     ],
   },
   enc_harbormasters: {
@@ -159,10 +195,10 @@ export const EMBERWATCH_ENCOUNTERS: Record<EncounterId, EncounterTemplate> = {
     height: 12,
     battleMapId: "bmap_harbor_hall",
     enemies: [
-      foe("ent_harbor_shade_1", "Harbormaster's Shade", 3, 6, 2, { role: "boss", damageType: "cold" }),
-      foe("ent_harbor_marauder_1", "Drowned Marauder", 3, 3, 4),
-      foe("ent_harbor_marauder_2", "Drowned Marauder", 3, 8, 4),
-      foe("ent_harbor_skirmisher_1", "Tide Skirmisher", 3, 4, 2, { role: "skirmisher" }),
+      foe("ent_harbor_shade_1", "Harbormaster's Shade", 3, 6, 2, { role: "boss", damageType: "cold", theme: "drowned" }),
+      foe("ent_harbor_marauder_1", "Drowned Marauder", 3, 3, 4, { theme: "drowned" }),
+      foe("ent_harbor_marauder_2", "Drowned Marauder", 3, 8, 4, { theme: "drowned" }),
+      foe("ent_harbor_skirmisher_1", "Tide Skirmisher", 3, 4, 2, { role: "skirmisher", theme: "drowned" }),
     ],
   },
 
@@ -228,8 +264,8 @@ export const EMBERWATCH_ENCOUNTERS: Record<EncounterId, EncounterTemplate> = {
     height: 10,
     battleMapId: "bmap_ossuary",
     enemies: [
-      foe("ent_door_husk_1", "Vault Husk", 2, 4, 3),
-      foe("ent_door_shade_1", "Cinder Shade", 2, 7, 3, { role: "skirmisher", damageType: "cold" }),
+      foe("ent_door_husk_1", "Vault Husk", 2, 4, 3, { theme: "ember" }),
+      foe("ent_door_shade_1", "Cinder Shade", 2, 7, 3, { role: "skirmisher", damageType: "cold", theme: "ember" }),
     ],
   },
   enc_bone_walk: {
@@ -238,9 +274,9 @@ export const EMBERWATCH_ENCOUNTERS: Record<EncounterId, EncounterTemplate> = {
     height: 10,
     battleMapId: "bmap_ossuary",
     enemies: [
-      foe("ent_walk_husk_1", "Vault Husk", 2, 3, 3),
-      foe("ent_walk_husk_2", "Vault Husk", 2, 8, 3),
-      foe("ent_walk_shade_1", "Cinder Shade", 2, 6, 1, { role: "skirmisher", damageType: "cold" }),
+      foe("ent_walk_husk_1", "Vault Husk", 2, 3, 3, { theme: "ember" }),
+      foe("ent_walk_husk_2", "Vault Husk", 2, 8, 3, { theme: "ember" }),
+      foe("ent_walk_shade_1", "Cinder Shade", 2, 6, 1, { role: "skirmisher", damageType: "cold", theme: "ember" }),
     ],
   },
   enc_ember_cistern: {
@@ -249,10 +285,10 @@ export const EMBERWATCH_ENCOUNTERS: Record<EncounterId, EncounterTemplate> = {
     height: 10,
     battleMapId: "bmap_cistern",
     enemies: [
-      foe("ent_cistern_keeper_1", "Cistern Keeper", 3, 6, 1, { role: "bruiser" }),
-      foe("ent_cistern_shade_1", "Cinder Shade", 3, 10, 2, { role: "skirmisher", damageType: "cold" }),
-      foe("ent_cistern_shade_2", "Cinder Shade", 3, 10, 4, { role: "skirmisher", damageType: "cold" }),
-      foe("ent_cistern_husk_1", "Vault Husk", 3, 1, 4),
+      foe("ent_cistern_keeper_1", "Cistern Keeper", 3, 6, 1, { role: "bruiser", theme: "ember" }),
+      foe("ent_cistern_shade_1", "Cinder Shade", 3, 10, 2, { role: "skirmisher", damageType: "cold", theme: "ember" }),
+      foe("ent_cistern_shade_2", "Cinder Shade", 3, 10, 4, { role: "skirmisher", damageType: "cold", theme: "ember" }),
+      foe("ent_cistern_husk_1", "Vault Husk", 3, 1, 4, { theme: "ember" }),
     ],
   },
   enc_reliquary: {
@@ -261,9 +297,9 @@ export const EMBERWATCH_ENCOUNTERS: Record<EncounterId, EncounterTemplate> = {
     height: 12,
     battleMapId: "bmap_deep_vault",
     enemies: [
-      foe("ent_reliquary_husk_1", "Vault Husk", 3, 4, 3),
-      foe("ent_reliquary_husk_2", "Vault Husk", 3, 7, 3),
-      foe("ent_reliquary_shade_1", "Cinder Shade", 3, 6, 6, { role: "skirmisher", damageType: "cold" }),
+      foe("ent_reliquary_husk_1", "Vault Husk", 3, 4, 3, { theme: "ember" }),
+      foe("ent_reliquary_husk_2", "Vault Husk", 3, 7, 3, { theme: "ember" }),
+      foe("ent_reliquary_shade_1", "Cinder Shade", 3, 6, 6, { role: "skirmisher", damageType: "cold", theme: "ember" }),
     ],
   },
   enc_ember_heart: {
@@ -272,10 +308,10 @@ export const EMBERWATCH_ENCOUNTERS: Record<EncounterId, EncounterTemplate> = {
     height: 12,
     battleMapId: "bmap_deep_vault",
     enemies: [
-      foe("ent_ember_revenant_1", "Ember Revenant", 4, 6, 3, { role: "boss" }),
-      foe("ent_heart_shade_1", "Cinder Shade", 4, 3, 3, { role: "skirmisher", damageType: "cold" }),
-      foe("ent_heart_shade_2", "Cinder Shade", 4, 8, 3, { role: "skirmisher", damageType: "cold" }),
-      foe("ent_heart_husk_1", "Vault Husk", 4, 5, 6),
+      foe("ent_ember_revenant_1", "Ember Revenant", 4, 6, 3, { role: "boss", theme: "ember" }),
+      foe("ent_heart_shade_1", "Cinder Shade", 4, 3, 3, { role: "skirmisher", damageType: "cold", theme: "ember" }),
+      foe("ent_heart_shade_2", "Cinder Shade", 4, 8, 3, { role: "skirmisher", damageType: "cold", theme: "ember" }),
+      foe("ent_heart_husk_1", "Vault Husk", 4, 5, 6, { theme: "ember" }),
     ],
   },
 };

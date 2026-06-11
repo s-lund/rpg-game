@@ -1,12 +1,15 @@
 import type { EntityId } from "../../shared/ids";
-import { damageSpellDef, healSpellDef } from "../characters/subset";
+import { coneSpellDef, damageSpellDef, healSpellDef } from "../characters/subset";
 import type { SpellId } from "../characters/subset";
 import { effectiveAc } from "./flanking";
 import { canTargetAlly, canTargetEnemy } from "./range";
 import { attackHits, damageBand, estimateHitPercent } from "./attack";
-import type { GameState } from "../types";
+import { adjustedAmount } from "./damage";
+import { estimateSavePercent } from "./save";
+import { isTileInCone } from "./cone";
+import type { DamageType, Entity, GameState, SaveKind } from "../types";
 
-export type InspectActionKind = "strike" | "cast_spell" | "cast_heal";
+export type InspectActionKind = "strike" | "cast_spell" | "cast_heal" | "cast_cone";
 
 export interface TargetInspection {
   hp: number;
@@ -15,6 +18,24 @@ export interface TargetInspection {
   damageMin: number | null;
   damageMax: number | null;
   inRange: boolean;
+  /** Chance the target saves (success or better) against a save-based spell. */
+  savePercent?: number | null;
+  saveKind?: SaveKind;
+  /** Weakness/resistance applied to the shown damage band. */
+  weaknessApplied?: { damageType: DamageType; value: number };
+  resistanceApplied?: { damageType: DamageType; value: number };
+}
+
+function appliedAdjustments(
+  target: Entity,
+  damageType: DamageType,
+): Pick<TargetInspection, "weaknessApplied" | "resistanceApplied"> {
+  const weakness = target.weaknesses?.[damageType] ?? 0;
+  const resistance = target.resistances?.[damageType] ?? 0;
+  return {
+    ...(weakness > 0 ? { weaknessApplied: { damageType, value: weakness } } : {}),
+    ...(resistance > 0 ? { resistanceApplied: { damageType, value: resistance } } : {}),
+  };
 }
 
 export function inspectTarget(
@@ -51,13 +72,15 @@ export function inspectTarget(
       ...base,
       inRange,
       hitPercent: estimateHitPercent(attacker.attackBonus, ac),
-      damageMin: band.min,
-      damageMax: band.max,
+      damageMin: adjustedAmount(target, band.min, attacker.damageType),
+      damageMax: adjustedAmount(target, band.max, attacker.damageType),
+      ...appliedAdjustments(target, attacker.damageType),
     };
   }
 
   if (actionKind === "cast_spell" && spellId === "ray_of_frost") {
     const spell = damageSpellDef(spellId);
+    const damageType = spell.damageType as DamageType;
     const inRange = canTargetEnemy(state, attackerId, targetId, spell.rangeTiles);
     const ac = effectiveAc(state, targetId);
     const band = damageBand(spell.damage.count, spell.damage.sides, 0);
@@ -65,8 +88,36 @@ export function inspectTarget(
       ...base,
       inRange,
       hitPercent: estimateHitPercent(attacker.spellAttackBonus, ac),
-      damageMin: band.min,
-      damageMax: band.max,
+      damageMin: adjustedAmount(target, band.min, damageType),
+      damageMax: adjustedAmount(target, band.max, damageType),
+      ...appliedAdjustments(target, damageType),
+    };
+  }
+
+  if (actionKind === "cast_cone" && spellId === "breathe_fire") {
+    const spell = coneSpellDef(spellId);
+    const damageType = spell.damageType as DamageType;
+    const saveKind = spell.save as SaveKind;
+    const inRange = isTileInCone(
+      attacker.x,
+      attacker.y,
+      target.x,
+      target.y,
+      spell.coneLengthTiles,
+      target.x,
+      target.y,
+    );
+    // Band shows the failure (full damage) case; a save halves, a crit success negates.
+    const band = damageBand(spell.damage.count, spell.damage.sides, 0);
+    return {
+      ...base,
+      inRange,
+      hitPercent: null,
+      savePercent: estimateSavePercent(target.saves[saveKind], attacker.spellDc),
+      saveKind,
+      damageMin: adjustedAmount(target, band.min, damageType),
+      damageMax: adjustedAmount(target, band.max, damageType),
+      ...appliedAdjustments(target, damageType),
     };
   }
 

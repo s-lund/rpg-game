@@ -1,5 +1,5 @@
-/** Curated M7 rules tables — sourced from rules/srd/m7-subset.json (ORC SRD). */
-import subsetJson from "../../../rules/srd/m7-subset.json";
+/** Curated M9 rules tables — sourced from rules/srd/m9-subset.json (ORC SRD). */
+import subsetJson from "../../../rules/srd/m9-subset.json";
 
 export type ClassId = "fighter" | "rogue" | "wizard" | "cleric";
 export type AbilityId = "str" | "dex" | "con" | "int" | "wis" | "cha";
@@ -11,6 +11,7 @@ export interface ClassRulesBase {
   label: string;
   keyAbilities: AbilityId[];
   hpPerLevel: number;
+  saves: Record<"fortitude" | "reflex" | "will", ProficiencyRank>;
   armor: {
     label: string;
     acBonus: number;
@@ -45,49 +46,74 @@ export interface RogueClassRules extends MartialClassRules {
   sneakAttack: { count: number; sides: number };
 }
 
+export interface PreparedSlotRules {
+  rank1: number;
+  preparedSpellId: SpellId;
+}
+
 export interface WizardClassRules extends ClassRulesBase {
   spellAttackProficiency: ProficiencyRank;
+  spellDcProficiency: ProficiencyRank;
   spellcastingAbility: AbilityId;
   knownSpells: SpellId[];
+  spellSlots: PreparedSlotRules;
   additionalSkillBase: number;
 }
 
 export interface ClericClassRules extends ClassRulesBase {
+  spellDcProficiency: ProficiencyRank;
   spellcastingAbility: AbilityId;
   knownSpells: SpellId[];
+  spellSlots: PreparedSlotRules;
+  divineFont: { slots: number; spellId: SpellId };
   additionalSkillBase: number;
 }
 
-export const M7_SUBSET = subsetJson;
-/** @deprecated Use M7_SUBSET — alias for transitional imports */
-export const M2_SUBSET = M7_SUBSET;
+export const M9_SUBSET = subsetJson;
+/** @deprecated Use M9_SUBSET — alias for transitional imports */
+export const M7_SUBSET = M9_SUBSET;
+/** @deprecated Use M9_SUBSET — alias for transitional imports */
+export const M2_SUBSET = M9_SUBSET;
 
-export const ABILITY_IDS = M7_SUBSET.abilities as AbilityId[];
+export const ABILITY_IDS = M9_SUBSET.abilities as AbilityId[];
+
+export const SAVE_ABILITIES = M9_SUBSET.saveAbilities as Record<
+  "fortitude" | "reflex" | "will",
+  AbilityId
+>;
 
 export function fighterRules(): FighterClassRules {
-  return M7_SUBSET.classes.fighter as FighterClassRules;
+  return M9_SUBSET.classes.fighter as FighterClassRules;
 }
 
 export function rogueRules(): RogueClassRules {
-  return M7_SUBSET.classes.rogue as RogueClassRules;
+  return M9_SUBSET.classes.rogue as RogueClassRules;
 }
 
 export function wizardRules(): WizardClassRules {
-  return M7_SUBSET.classes.wizard as WizardClassRules;
+  return M9_SUBSET.classes.wizard as WizardClassRules;
 }
 
 export function clericRules(): ClericClassRules {
-  return M7_SUBSET.classes.cleric as ClericClassRules;
+  return M9_SUBSET.classes.cleric as ClericClassRules;
 }
 
-export function spellDef(spellId: SpellId) {
-  return M7_SUBSET.spells[spellId];
+export function spellDef<K extends SpellId>(spellId: K): (typeof M9_SUBSET.spells)[K] {
+  return M9_SUBSET.spells[spellId];
 }
 
 export function damageSpellDef(spellId: "ray_of_frost") {
-  return M7_SUBSET.spells[spellId];
+  return M9_SUBSET.spells[spellId];
 }
 
 export function healSpellDef(spellId: "heal_ranged") {
-  return M7_SUBSET.spells[spellId];
+  return M9_SUBSET.spells[spellId];
+}
+
+export function coneSpellDef(spellId: "breathe_fire") {
+  return M9_SUBSET.spells[spellId];
+}
+
+export function spellRank(spellId: SpellId): number {
+  return M9_SUBSET.spells[spellId].rank;
 }

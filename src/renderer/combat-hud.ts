@@ -1,10 +1,15 @@
-import type { GameState, InspectActionKind, TargetInspection } from "../core/index";
+import type { Entity, GameState, InspectActionKind, TargetInspection } from "../core/index";
 
 const HUD_ID = "emberwatch-combat-hud";
 const END_TURN_BTN_ID = "emberwatch-end-turn-btn";
 const INSPECTOR_ID = "emberwatch-combat-inspector";
 
-export type CombatActionMode = "strike" | "cast_spell" | "cast_heal";
+export type CombatActionMode = "move" | "strike" | "cast_spell" | "cast_heal" | "cast_cone";
+
+function unexpendedSlots(entity: Entity, spellId: string): number {
+  return (entity.spellSlots ?? []).filter((s) => !s.expended && s.preparedSpellId === spellId)
+    .length;
+}
 
 export class CombatHud {
   private element: HTMLDivElement;
@@ -106,6 +111,8 @@ export class CombatHud {
   }
 
   showInspector(label: string, info: TargetInspection, clientX: number, clientY: number): void {
+    const saveLabels = { fortitude: "Fortitude", reflex: "Reflex", will: "Will" } as const;
+    const isSaveSpell = info.savePercent !== undefined && info.savePercent !== null;
     const lines = [
       `<strong style='color:#6fcf97'>${escapeHtml(label)}</strong>`,
       `HP ${info.hp}/${info.maxHp}`,
@@ -116,9 +123,26 @@ export class CombatHud {
     if (info.hitPercent !== null) {
       lines.push(`Hit ~${info.hitPercent}%`);
     }
+    if (isSaveSpell && info.saveKind) {
+      lines.push(`${saveLabels[info.saveKind]} save ~${info.savePercent}% (half on save)`);
+    }
     if (info.damageMin !== null && info.damageMax !== null) {
-      const prefix = info.hitPercent === null ? "Heal" : "Damage";
+      const prefix = isSaveSpell
+        ? "Damage (on fail)"
+        : info.hitPercent === null
+          ? "Heal"
+          : "Damage";
       lines.push(`${prefix} ${info.damageMin}–${info.damageMax}`);
+    }
+    if (info.weaknessApplied) {
+      lines.push(
+        `<span style='color:#e0a060'>Weak to ${info.weaknessApplied.damageType} (+${info.weaknessApplied.value})</span>`,
+      );
+    }
+    if (info.resistanceApplied) {
+      lines.push(
+        `<span style='color:#7eb8ff'>Resists ${info.resistanceApplied.damageType} (−${info.resistanceApplied.value})</span>`,
+      );
     }
     this.inspectorEl.innerHTML = lines.join("<br>");
     this.inspectorEl.style.display = "block";
@@ -171,22 +195,22 @@ export class CombatHud {
       const isPartyTurn = active.team === "party";
 
       if (isPartyTurn) {
-        this.syncDefaultActionMode(active.classId);
+        this.syncDefaultActionMode(active);
         lines.push(
           "",
           `<strong style='color:#ffb43c'>Your turn: ${escapeHtml(active.label)}</strong>`,
           `<span style='color:#aaa'>${active.actionPoints} action point${active.actionPoints === 1 ? "" : "s"} left</span>`,
           "",
           "<strong>What to do</strong>",
-          "1. Pick an action mode below.",
-          "2. Click a <strong>tile</strong> to move (1 AP/tile).",
+          "1. Pick an action mode below — <strong>Move</strong> never casts.",
+          "2. Click a <strong>tile</strong> to move (1 AP/tile); with Breathe Fire selected the click casts there instead.",
           "3. Click a <strong>target</strong> — enemy to attack/cast, ally to heal.",
           `4. <strong>End Turn</strong> or press <kbd style='background:#333;padding:1px 5px;border-radius:3px'>E</kbd>.`,
         );
         this.buttonEl.textContent = "End Turn";
         this.buttonEl.style.display = "block";
         this.actionBar.style.display = "flex";
-        this.renderActionButtons(active.classId);
+        this.renderActionButtons(active);
       } else {
         lines.push(
           "",
@@ -207,10 +231,13 @@ export class CombatHud {
       if (entity.team !== "party") continue;
       const cond = entity.conditions.length ? ` [${entity.conditions.join(", ")}]` : "";
       const status = entity.downed ? " DOWN" : "";
+      const slots = entity.spellSlots
+        ? ` · slots ${entity.spellSlots.filter((s) => !s.expended).length}/${entity.spellSlots.length}`
+        : "";
       const marker =
         entity.id === state.combat.activeActorId ? " <span style='color:#ffb43c'>← active</span>" : "";
       lines.push(
-        `${escapeHtml(entity.label)}: ${entity.hp}/${entity.maxHp} HP · AC ${entity.ac} · ${entity.actionPoints} AP${cond}${status}${marker}`,
+        `${escapeHtml(entity.label)}: ${entity.hp}/${entity.maxHp} HP · AC ${entity.ac} · ${entity.actionPoints} AP${slots}${cond}${status}${marker}`,
       );
     }
 
@@ -248,33 +275,60 @@ export class CombatHud {
     this.element.appendChild(this.buttonEl);
   }
 
-  private syncDefaultActionMode(classId: string | undefined): void {
-    if (classId === "wizard") {
-      this.actionMode = "cast_spell";
+  /** Keep the player's mode choice while it stays valid for the active hero; else fall back. */
+  private syncDefaultActionMode(entity: Entity): void {
+    const classId = entity.classId;
+    const valid: CombatActionMode[] = ["move"];
+    if (classId === "fighter" || classId === "rogue") {
+      valid.push("strike");
+    } else if (classId === "wizard") {
+      valid.push("cast_spell");
+      if (unexpendedSlots(entity, "breathe_fire") > 0) {
+        valid.push("cast_cone");
+      }
     } else if (classId === "cleric") {
-      this.actionMode = "cast_heal";
-    } else {
-      this.actionMode = "strike";
+      valid.push("cast_heal");
+    }
+    if (!valid.includes(this.actionMode)) {
+      this.actionMode =
+        classId === "wizard" ? "cast_spell" : classId === "cleric" ? "cast_heal" : "strike";
     }
   }
 
-  private renderActionButtons(classId: string | undefined): void {
+  private renderActionButtons(entity: Entity): void {
+    const classId = entity.classId;
     this.actionBar.innerHTML = "";
-    const modes: { mode: CombatActionMode; label: string; show: boolean }[] = [
+    const fireSlots = unexpendedSlots(entity, "breathe_fire");
+    const healSlots = unexpendedSlots(entity, "heal_ranged");
+    const modes: { mode: CombatActionMode; label: string; show: boolean; disabled?: boolean }[] = [
+      { mode: "move", label: "Move", show: true },
       { mode: "strike", label: "Strike", show: classId === "fighter" || classId === "rogue" },
       { mode: "cast_spell", label: "Ray of Frost", show: classId === "wizard" },
-      { mode: "cast_heal", label: "Heal", show: classId === "cleric" },
+      {
+        mode: "cast_cone",
+        label: `Breathe Fire (${fireSlots})`,
+        show: classId === "wizard",
+        disabled: fireSlots === 0,
+      },
+      {
+        mode: "cast_heal",
+        label: entity.spellSlots ? `Heal (${healSlots})` : "Heal",
+        show: classId === "cleric",
+        disabled: entity.spellSlots ? healSlots === 0 : false,
+      },
     ];
 
-    for (const { mode, label, show } of modes) {
+    for (const { mode, label, show, disabled } of modes) {
       if (!show) continue;
       const btn = document.createElement("button");
       btn.type = "button";
       btn.textContent = label;
+      btn.disabled = Boolean(disabled);
       const active = this.actionMode === mode;
       btn.style.cssText = [
         "pointer-events: auto",
-        "cursor: pointer",
+        disabled ? "cursor: not-allowed" : "cursor: pointer",
+        disabled ? "opacity: 0.45" : "opacity: 1",
         "padding: 6px 10px",
         "border-radius: 4px",
         "border: 1px solid",
@@ -284,6 +338,7 @@ export class CombatHud {
         "font: 600 12px/1 ui-sans-serif, system-ui, sans-serif",
       ].join(";");
       btn.addEventListener("click", () => {
+        if (disabled) return;
         this.setActionMode(mode);
         this.onActionModeChange?.(mode);
       });
@@ -296,6 +351,8 @@ export function actionModeToInspectKind(mode: CombatActionMode): InspectActionKi
   switch (mode) {
     case "cast_spell":
       return "cast_spell";
+    case "cast_cone":
+      return "cast_cone";
     case "cast_heal":
       return "cast_heal";
     default:
@@ -308,7 +365,8 @@ export function inspectModeForActor(
   classId: string | undefined,
   hudMode: CombatActionMode,
 ): CombatActionMode {
-  if (classId === "wizard") return "cast_spell";
+  if (hudMode === "move") return "move";
+  if (classId === "wizard") return hudMode === "cast_cone" ? "cast_cone" : "cast_spell";
   if (classId === "cleric") return "cast_heal";
   if (classId === "fighter" || classId === "rogue") return "strike";
   return hudMode;

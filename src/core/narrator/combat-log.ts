@@ -1,4 +1,12 @@
-import type { AttackResolution, GameEvent, HealResolution } from "../types";
+import type {
+  AttackResolution,
+  DamageAdjustment,
+  GameEvent,
+  HealResolution,
+  SaveOutcome,
+  SaveResolution,
+} from "../types";
+import { M9_SUBSET } from "../characters/subset";
 import type { NarrationContext } from "./types";
 
 function label(ctx: NarrationContext, id: string): string {
@@ -9,6 +17,53 @@ function formatDiceRolls(rolls: number[], modifier: number): string {
   const sum = rolls.reduce((a, b) => a + b, 0);
   const modStr = modifier >= 0 ? ` + ${modifier}` : ` − ${Math.abs(modifier)}`;
   return `(${rolls.join("+")})${modStr} = ${sum + modifier}`;
+}
+
+/** "(6 base + 2 cold weakness − 3 fire resistance)" — only when something applied. */
+function adjustmentNote(event: GameEvent): string {
+  const adj = event.payload.damage_adjustment as DamageAdjustment | undefined;
+  if (!adj) return "";
+  const parts = [`${adj.before} base`];
+  if (adj.weakness) {
+    parts.push(`+ ${adj.weakness.value} ${adj.weakness.damageType} weakness`);
+  }
+  if (adj.resistance) {
+    parts.push(`− ${adj.resistance.value} ${adj.resistance.damageType} resistance`);
+  }
+  return ` (${parts.join(" ")})`;
+}
+
+const SAVE_OUTCOME_LABELS: Record<SaveOutcome, string> = {
+  critSuccess: "CRITICAL SUCCESS — no damage",
+  success: "SUCCESS — half damage",
+  failure: "FAILURE — full damage",
+  critFailure: "CRITICAL FAILURE — double damage",
+};
+
+const SAVE_KIND_LABELS = {
+  fortitude: "Fortitude",
+  reflex: "Reflex",
+  will: "Will",
+} as const;
+
+function formatSaveResolution(event: GameEvent, ctx: NarrationContext): string[] {
+  const res = event.payload.save_resolution as SaveResolution;
+  const target = label(ctx, String(event.payload.target_id));
+  const lines: string[] = [];
+
+  lines.push(
+    `  ${target} ${SAVE_KIND_LABELS[res.saveKind]} save: d20(${res.d20Natural}) + ${res.saveModifier} = ${res.saveTotal} vs DC ${res.dc} — ${SAVE_OUTCOME_LABELS[res.outcome]}`,
+  );
+
+  const amount = event.payload.amount as number;
+  const hpAfter = event.payload.hp_after as number;
+  const dtype = event.payload.damage_type as string;
+  if (amount > 0) {
+    lines.push(`  ${target} takes ${amount} ${dtype}${adjustmentNote(event)} (${hpAfter} HP left)`);
+  } else {
+    lines.push(`  ${target} takes no damage`);
+  }
+  return lines;
 }
 
 function formatAttackResolution(event: GameEvent, ctx: NarrationContext): string[] {
@@ -39,7 +94,9 @@ function formatAttackResolution(event: GameEvent, ctx: NarrationContext): string
   if (amount > 0) {
     const dtype = event.payload.damage_type as string;
     const hpAfter = event.payload.hp_after as number;
-    lines.push(`  ${target} takes ${amount} ${dtype} (${hpAfter} HP left)`);
+    lines.push(`  ${target} takes ${amount} ${dtype}${adjustmentNote(event)} (${hpAfter} HP left)`);
+  } else if (event.payload.damage_adjustment) {
+    lines.push(`  ${target} takes no damage${adjustmentNote(event)}`);
   }
 
   return lines;
@@ -88,6 +145,8 @@ export function formatCombatLogBatch(events: GameEvent[], ctx: NarrationContext)
       case "DamageDealt": {
         if (event.payload.attack_resolution) {
           lines.push(...formatAttackResolution(event, ctx));
+        } else if (event.payload.save_resolution) {
+          lines.push(...formatSaveResolution(event, ctx));
         } else if ((event.payload.amount as number) > 0) {
           const target = label(ctx, String(event.payload.target_id));
           const amount = event.payload.amount as number;
@@ -95,6 +154,18 @@ export function formatCombatLogBatch(events: GameEvent[], ctx: NarrationContext)
           const hpAfter = event.payload.hp_after as number;
           lines.push(`${target} takes ${amount} ${dtype} damage (${hpAfter} HP left)`);
         }
+        break;
+      }
+      case "SpellSlotSpent": {
+        const who = label(ctx, String(event.payload.entity_id));
+        const spellId = event.payload.spell_id as string | null;
+        const rank = event.payload.rank as number | null;
+        const remaining = event.payload.remaining as number;
+        const spells = M9_SUBSET.spells as Record<string, { label: string }>;
+        const spellName = (spellId && spells[spellId]?.label) || "spell";
+        lines.push(
+          `${who} expends a rank-${rank ?? 1} slot (${spellName}) — ${remaining} slot${remaining === 1 ? "" : "s"} left`,
+        );
         break;
       }
       case "Healed": {

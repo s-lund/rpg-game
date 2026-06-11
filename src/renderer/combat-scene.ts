@@ -45,6 +45,7 @@ export class CombatScene {
   private selectedEntityId: string | null = null;
   private rangeHighlightActorId: string | null = null;
   private rangeHighlightTiles = 0;
+  private areaHighlightTiles: { x: number; y: number }[] | null = null;
   private combatPhase: GameState["combat"]["phase"] = "active";
   private readonly sceneRef: { current: THREE.Scene | null } = { current: null };
 
@@ -188,6 +189,7 @@ export class CombatScene {
 
     this.selectedEntityId = null;
     this.rangeHighlightActorId = null;
+    this.areaHighlightTiles = null;
     this.sceneRef.current = null;
   }
 
@@ -255,6 +257,12 @@ export class CombatScene {
     this.refreshTileRangeHighlight();
   }
 
+  /** Cone/area preview tiles (M9 Breathe Fire) — drawn over the range highlight. */
+  setAreaHighlight(tiles: { x: number; y: number }[] | null): void {
+    this.areaHighlightTiles = tiles;
+    this.refreshTileRangeHighlight();
+  }
+
   getSelectedEntity(): string | null {
     return this.selectedEntityId;
   }
@@ -313,6 +321,9 @@ export class CombatScene {
           const damageType = event.payload.damage_type as string;
           const kind = damageType === "cold" ? "spell_bolt" : "arrow";
           this.spawnProjectile(event.actorId, String(event.payload.target_id), kind);
+        } else if (event.payload.save_resolution) {
+          // Save-based area damage (Breathe Fire) — placeholder bolt per target.
+          this.spawnProjectile(event.actorId, String(event.payload.target_id), "spell_bolt");
         }
         break;
       }
@@ -431,16 +442,22 @@ export class CombatScene {
     const actor = this.rangeHighlightActorId
       ? this.visuals.get(this.rangeHighlightActorId)
       : null;
+    const areaTiles = this.areaHighlightTiles;
 
     for (const tile of this.tileMeshes) {
       const mat = tile.material as THREE.MeshStandardMaterial;
       const base = tile.userData.baseColor as number;
+      const tx = tile.userData.tileX as number;
+      const ty = tile.userData.tileY as number;
+
+      if (areaTiles?.some((t) => t.x === tx && t.y === ty)) {
+        mat.color.setHex(0x9a5a28);
+        continue;
+      }
       if (!actor || this.rangeHighlightTiles < 1) {
         mat.color.setHex(base);
         continue;
       }
-      const tx = tile.userData.tileX as number;
-      const ty = tile.userData.tileY as number;
       const dist = Math.abs(tx - actor.tileX) + Math.abs(ty - actor.tileY);
       const inRange =
         this.rangeHighlightTiles <= 1

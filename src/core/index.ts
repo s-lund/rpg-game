@@ -12,12 +12,12 @@ export type {
   TilesetId,
 } from "../shared/ids";
 
-export const CORE_VERSION = "0.1.0-m8";
+export const CORE_VERSION = "0.1.0-m9";
 
 export type { Action } from "./actions/types";
 export { resolveAction, postActionEffects } from "./actions/resolve";
 
-export type { Effect } from "./effects/types";
+export type { Effect, AnyEffect, SpellSlotEffect } from "./effects/types";
 export { ALL_EFFECT_KINDS } from "./effects/types";
 export { apply, applyAll } from "./effects/apply";
 export type { ApplyContext, ApplyResult } from "./effects/apply";
@@ -103,7 +103,13 @@ export {
 } from "./world/validate";
 export { applyCampaignEffect } from "./world/campaign-apply";
 export type { CampaignEffect, CampaignApplyContext, CampaignApplyResult } from "./world/campaign-apply";
-export { createCampaignState, canTravelTo, travelTo, triggerStoryBeat } from "./world/travel";
+export {
+  createCampaignState,
+  canTravelTo,
+  travelTo,
+  triggerStoryBeat,
+  prepareSpellSlotsAtHaven,
+} from "./world/travel";
 export { formatEventLine, formatBeat, formatEvents } from "./narrator/format";
 export { formatCombatLogBatch } from "./narrator/combat-log";
 export { formatSiteAmbience } from "./narrator/sites";
@@ -115,13 +121,17 @@ export type { CharacterDraft, PartyDraft, ValidationResult } from "./characters/
 export type { AbilityId, ClassId as CharacterClassId, SkillId } from "./characters/subset";
 export {
   ABILITY_IDS,
+  M9_SUBSET,
   M7_SUBSET,
   M2_SUBSET,
+  SAVE_ABILITIES,
   fighterRules,
   rogueRules,
   wizardRules,
   clericRules,
   spellDef,
+  coneSpellDef,
+  spellRank,
   type SpellId,
 } from "./characters/subset";
 export {
@@ -131,7 +141,12 @@ export {
   ABILITY_POINT_BUY,
 } from "./characters/abilities";
 export { validateCharacter, validateParty, createDefaultParty } from "./characters/validate";
-export { deriveEntityBlueprint, derivePartyBlueprints, buildEncounterConfig } from "./characters/derive";
+export {
+  deriveEntityBlueprint,
+  derivePartyBlueprints,
+  buildEncounterConfig,
+  defaultPreparedSlots,
+} from "./characters/derive";
 export { serializeParty, deserializeParty } from "./characters/serialize";
 
 export type {
@@ -173,6 +188,10 @@ export {
 export { tileDistance, isInRange, canTargetEnemy, canTargetAlly } from "./combat/range";
 export { inspectTarget, type TargetInspection, type InspectActionKind } from "./combat/inspect";
 export { attackHits, estimateHitPercent, damageBand } from "./combat/attack";
+export { degreeOfSuccess, basicSaveDamage, rollSave, estimateSavePercent } from "./combat/save";
+export { adjustDamage, adjustedAmount } from "./combat/damage";
+export { coneTiles, coneDirection, isTileInCone } from "./combat/cone";
+export { findStepPath } from "./combat/path";
 export { chooseEnemyAction } from "./ai/enemy-turn";
 
 export type { Rng } from "./rng";
@@ -189,5 +208,10 @@ export type {
   InitialStateConfig,
   AttackResolution,
   HealResolution,
+  SaveResolution,
+  DamageAdjustment,
+  SpellSlot,
   DamageType,
+  SaveKind,
+  SaveOutcome,
 } from "./types";

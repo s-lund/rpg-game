@@ -1,5 +1,5 @@
 import type { EntityId } from "../../shared/ids";
-import type { Effect } from "./types";
+import type { AnyEffect } from "./types";
 import type { Entity, GameEvent, GameState } from "../types";
 
 export interface ApplyContext {
@@ -15,7 +15,15 @@ export interface ApplyResult {
 }
 
 function cloneEntity(entity: Entity): Entity {
-  return { ...entity, conditions: [...entity.conditions], knownSpells: [...entity.knownSpells] };
+  return {
+    ...entity,
+    conditions: [...entity.conditions],
+    knownSpells: [...entity.knownSpells],
+    saves: { ...entity.saves },
+    ...(entity.resistances ? { resistances: { ...entity.resistances } } : {}),
+    ...(entity.weaknesses ? { weaknesses: { ...entity.weaknesses } } : {}),
+    ...(entity.spellSlots ? { spellSlots: entity.spellSlots.map((slot) => ({ ...slot })) } : {}),
+  };
 }
 
 function cloneState(state: GameState): GameState {
@@ -34,7 +42,7 @@ function cloneState(state: GameState): GameState {
   };
 }
 
-function buildEvent(effect: Effect, state: GameState, ctx: ApplyContext): GameEvent {
+function buildEvent(effect: AnyEffect, state: GameState, ctx: ApplyContext): GameEvent {
   const base = {
     seq: ctx.seq,
     turn: ctx.turn,
@@ -70,10 +78,35 @@ function buildEvent(effect: Effect, state: GameState, ctx: ApplyContext): GameEv
       if (effect.attackResolution) {
         payload.attack_resolution = effect.attackResolution;
       }
+      if (effect.saveResolution) {
+        payload.save_resolution = effect.saveResolution;
+      }
+      if (effect.damageAdjustment) {
+        payload.damage_adjustment = effect.damageAdjustment;
+      }
       return {
         ...base,
         type: "DamageDealt",
         payload,
+      };
+    }
+    case "SpendSpellSlot": {
+      const entity = state.entities[effect.entityId]!;
+      const slot = entity.spellSlots?.find((s) => s.id === effect.slotId);
+      const remaining = (entity.spellSlots ?? []).filter(
+        (s) => !s.expended && s.id !== effect.slotId,
+      ).length;
+      return {
+        ...base,
+        type: "SpellSlotSpent",
+        payload: {
+          entity_id: effect.entityId,
+          slot_id: effect.slotId,
+          spell_id: slot?.preparedSpellId ?? null,
+          rank: slot?.rank ?? null,
+          remaining,
+          from_effect: effect.effectId,
+        },
       };
     }
     case "Heal": {
@@ -156,7 +189,7 @@ function buildEvent(effect: Effect, state: GameState, ctx: ApplyContext): GameEv
   }
 }
 
-function reduce(effect: Effect, draft: GameState): void {
+function reduce(effect: AnyEffect, draft: GameState): void {
   switch (effect.kind) {
     case "MoveTo": {
       const entity = draft.entities[effect.entityId]!;
@@ -190,6 +223,14 @@ function reduce(effect: Effect, draft: GameState): void {
       target.conditions = target.conditions.filter((c) => c !== effect.condition);
       break;
     }
+    case "SpendSpellSlot": {
+      const entity = draft.entities[effect.entityId]!;
+      const slot = entity.spellSlots?.find((s) => s.id === effect.slotId);
+      if (slot) {
+        slot.expended = true;
+      }
+      break;
+    }
     case "SpendActionPoints": {
       const entity = draft.entities[effect.entityId]!;
       entity.actionPoints = Math.max(0, entity.actionPoints - effect.amount);
@@ -215,7 +256,7 @@ function reduce(effect: Effect, draft: GameState): void {
   }
 }
 
-export function apply(effect: Effect, state: GameState, ctx: ApplyContext): ApplyResult {
+export function apply(effect: AnyEffect, state: GameState, ctx: ApplyContext): ApplyResult {
   const event = buildEvent(effect, state, ctx);
   const next = cloneState(state);
   reduce(effect, next);
@@ -224,7 +265,7 @@ export function apply(effect: Effect, state: GameState, ctx: ApplyContext): Appl
 }
 
 export function applyAll(
-  effects: Effect[],
+  effects: AnyEffect[],
   state: GameState,
   ctx: { seqStart: number; turn: number; actorId: EntityId; actionId: string },
 ): ApplyResult {

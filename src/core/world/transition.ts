@@ -40,7 +40,11 @@ export function applyCombatResultToCampaign(
       return member;
     }
     const clampedHp = Math.max(0, Math.min(entity.hp, entity.maxHp));
-    return { ...member, currentHp: clampedHp };
+    return {
+      ...member,
+      currentHp: clampedHp,
+      ...(entity.spellSlots ? { spellSlots: entity.spellSlots.map((slot) => ({ ...slot })) } : {}),
+    };
   });
 
   return {

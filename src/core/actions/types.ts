@@ -30,6 +30,15 @@ export type Action =
       targetId: EntityId;
     }
   | {
+      kind: "CastConeSpell";
+      actionId: string;
+      actorId: EntityId;
+      spellId: SpellId;
+      /** Aim tile — the cone direction snaps toward it and must cover it. */
+      targetX: number;
+      targetY: number;
+    }
+  | {
       kind: "EndTurn";
       actionId: string;
       actorId: EntityId;

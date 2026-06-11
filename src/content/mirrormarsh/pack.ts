@@ -26,6 +26,12 @@ function marshFoe(
     strikeRange: ranged ? 4 : 1,
     damageType: ranged ? "piercing" : "slashing",
     damage: { count: 1, sides: 6, modifier: tier >= 2 ? 1 : 0 },
+    saves: ranged
+      ? { fortitude: 2 + tier, reflex: 5 + tier, will: 2 + tier }
+      : { fortitude: 4 + tier, reflex: 3 + tier, will: 2 + tier },
+    // Marsh-soaked creatures shrug off cold but burn easily (M9 theming).
+    resistances: { cold: 3 },
+    weaknesses: { fire: 2 },
   };
 }
 
@@ -78,6 +84,9 @@ const MIRRORMARSH_ENCOUNTERS: Record<EncounterId, EncounterTemplate> = {
         strikeRange: 1,
         damageType: "cold",
         damage: { count: 1, sides: 8, modifier: 2 },
+        saves: { fortitude: 7, reflex: 5, will: 7 },
+        resistances: { cold: 3 },
+        weaknesses: { fire: 2 },
       },
       marshFoe("ent_vault_stalker_1", "Bog Stalker", 2, 3, 2, true),
     ],

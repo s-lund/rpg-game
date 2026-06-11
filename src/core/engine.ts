@@ -2,7 +2,7 @@ import type { EntityId } from "../shared/ids";
 import type { Action } from "./actions/types";
 import { postActionEffects, resolveAction } from "./actions/resolve";
 import { apply, applyAll } from "./effects/apply";
-import type { Effect } from "./effects/types";
+import type { AnyEffect } from "./effects/types";
 import type { Rng } from "./rng";
 import { createDefaultRng } from "./rng";
 import type { GameEvent, GameState } from "./types";
@@ -52,7 +52,15 @@ function cloneInitialState(initial: GameState): GameState {
   return {
     ...initial,
     entities: Object.fromEntries(
-      Object.entries(initial.entities).map(([id, e]) => [id, { ...e, conditions: [...e.conditions] }]),
+      Object.entries(initial.entities).map(([id, e]) => [
+        id,
+        {
+          ...e,
+          conditions: [...e.conditions],
+          saves: { ...e.saves },
+          ...(e.spellSlots ? { spellSlots: e.spellSlots.map((slot) => ({ ...slot })) } : {}),
+        },
+      ]),
     ) as GameState["entities"],
     combat: { ...initial.combat, turnOrder: [...initial.combat.turnOrder] },
     eventLog: [],
@@ -83,7 +91,7 @@ export function replayEvents(
   return { state };
 }
 
-function effectFromEvent(event: GameEvent): Effect | null {
+function effectFromEvent(event: GameEvent): AnyEffect | null {
   const fromEffect = String(event.payload.from_effect ?? "");
 
   switch (event.type) {
@@ -130,6 +138,13 @@ function effectFromEvent(event: GameEvent): Effect | null {
         effectId: fromEffect,
         entityId: event.payload.entity_id as EntityId,
         amount: event.payload.amount as number,
+      };
+    case "SpellSlotSpent":
+      return {
+        kind: "SpendSpellSlot",
+        effectId: fromEffect,
+        entityId: event.payload.entity_id as EntityId,
+        slotId: event.payload.slot_id as string,
       };
     case "TurnStarted":
       return {

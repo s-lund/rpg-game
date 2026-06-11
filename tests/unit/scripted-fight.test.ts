@@ -52,16 +52,20 @@ describe("scripted fight", () => {
     const rng = createSeededRng(42);
     let session = { state: createInitialState(FIGHT_CONFIG), nextSeq: 1 };
 
+    // M9 path-aware movement: nobody walks through the goblin — the fighter
+    // circles to the north side while the rogue takes the south for the flank.
     const script = [
       { kind: "Step" as const, actionId: "act_f_move", actorId: "ent_fighter_01" as const, x: 4, y: 5 },
       { kind: "EndTurn" as const, actionId: "act_f_end", actorId: "ent_fighter_01" as const },
       { kind: "Step" as const, actionId: "act_r_move", actorId: "ent_rogue_01" as const, x: 5, y: 5 },
       { kind: "EndTurn" as const, actionId: "act_r_end", actorId: "ent_rogue_01" as const },
       { kind: "EndTurn" as const, actionId: "act_g_end", actorId: "ent_goblin_01" as const },
-      { kind: "Step" as const, actionId: "act_f_flank", actorId: "ent_fighter_01" as const, x: 7, y: 5 },
+      { kind: "Step" as const, actionId: "act_f_flank", actorId: "ent_fighter_01" as const, x: 6, y: 4 },
       { kind: "EndTurn" as const, actionId: "act_f_end2", actorId: "ent_fighter_01" as const },
+      { kind: "Step" as const, actionId: "act_r_flank", actorId: "ent_rogue_01" as const, x: 6, y: 6 },
       { kind: "Strike" as const, actionId: "act_r_strike", actorId: "ent_rogue_01" as const, targetId: "ent_goblin_01" as const },
       { kind: "EndTurn" as const, actionId: "act_r_end2", actorId: "ent_rogue_01" as const },
+      { kind: "EndTurn" as const, actionId: "act_g_end2", actorId: "ent_goblin_01" as const },
       { kind: "Strike" as const, actionId: "act_f_strike", actorId: "ent_fighter_01" as const, targetId: "ent_goblin_01" as const },
     ];
 

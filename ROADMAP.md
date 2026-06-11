@@ -75,19 +75,129 @@ Milestones are sequential and each is a bounded loop target. Stack: TypeScript +
 - **Model:** standard for manifest + loader wiring; N/A for producing final art (out-of-loop). *Fixed authored maps and procedurally generated graphs both remain valid — art is presentation anchored to `mapX`/`mapY` (strategic) and grid layout (battle), topology stays data.*
 - **Plan changes made during M8 (delivered beyond the original spec):** district interiors may span **multiple levels** (tower floors / dungeon depths) with per-level map art and stairs-aware token travel; battle maps carry **blocked terrain** (walls, water, chasms) that the core enforces for movement; hostile **world-layer combat sites** fight on arrival and flip to Held (the world map participates in reclamation, not only district interiors); the shipped "real art" is authored SVG illustration — raster painted upgrades remain a manifest-edit drop-in (`ASSETS_NEEDED.md`).
 
-## M9 — Combat rules depth *(deferred from M7)*
+## Phase 2 (M9–M20) — from engine demo to game
+*Added 2026-06-11 after the genre gap review (XCOM, BG1/2, Battle Brothers). Ordered hardest-first, except where an item depends on an earlier one. Two dependency chains force the order: combat depth (M9 → M10 → M11) must land before the tactical AI can be smart about it (M12), and equipment (M14) + progression (M15) must land before story rewards (M16) and gear-reflective figurines (M18). M13 and M14 don't depend on the combat chain and may be pulled forward if priorities shift. The old "M10 Tactical character art pass" is subsumed into M18. Each item flags **Clarify first** (decisions needed from the human) and **Safe to start** (unambiguous, can be coded today once the milestone begins).*
+
+## M9 — Combat rules depth *(deferred from M7; unchanged)*
 **Goal:** PF2e mechanics that were scoped out of M7 — saves, resistances, and spell-slot economy — without changing the map or art layers. *(Added by M8: path-aware Step movement — M8 blocked terrain rejects landing on walls but Step has no route check yet, so a multi-AP step can cross a wall tile; fix belongs with the movement rules here.)*
+- **Difficulty:** medium — but it's the dependency root for everything tactical, so it goes first.
 - **You can try:** spells and effects that call for saves (e.g. Reflex / Fort / Will) resolve with visible save outcomes in the combat log; creatures with resistance or weakness show the adjusted damage; leveled spells consume per-day slots instead of acting like at-will cantrips.
 - **Loop self-check:** each new rule rides the existing action → effect → state pipeline with contract tests; save resolution, resistance/weakness math, and slot spend/recovery are headless in core; no renderer mutation of authoritative state.
 - **Stop signal:** "M9 done. Cast a save-based effect, hit something with resistance, and spend a leveled spell slot — all visible in the log."
 - **Model:** premium if save edge cases get hairy; standard per action/effect.
+- **Clarify first:** *resolved 2026-06-11 — follow PF2e RAW.* Heal becomes a rank-1 leveled spell consuming slots, and the Cleric gains **divine font** (bonus slots restricted to Heal, count per the vendored SRD) so healing stays plentiful but finite. The Wizard vendors **Breathe Fire** (remaster ORC name; Reflex basic save, fire damage) — one spell exercises slots, four-tier basic saves, and resistance/weakness together. Prepared casting is PF2e-style: a specific spell locked into a specific slot at daily preparation. Interim slot recovery until M19's rest system: free preparation at safe havens, flagged PROCEDURAL in the overlay. Vendor all SRD text (divine font, Breathe Fire, basic saves, resistance/weakness, slots-per-day) under `rules/srd/` before implementing — never from memory. *Further resolved:* M7's Heal / Ray of Frost implementations were mechanics scaffolding and **may be overwritten**; the frozen M7 contract tests construct slot-less entities, so slot enforcement is **opt-in** (an entity without a `spellSlots` pool casts unrestricted) and the frozen tests stay green untouched. **Testability requirement (applies to this and every later milestone):** ship the systems pre-loaded — the party starts with filled prepared slots (Wizard: Breathe Fire; Cleric: divine-font Heals), and the enemy archetype factory gains save modifiers plus themed resistances/weaknesses (e.g. ember creatures resist fire, marsh/drowned creatures resist cold — both packs show reduced *and* boosted damage in one playtest). Breathe Fire's cone follows PF2e RAW and damages allies caught in the template (their saves apply) — AoE friendly fire effectively arrives here; cover-based friendly fire for single-target line attacks remains M11.
+- **Safe to start:** save resolution + resistance/weakness math headless in core (SRD-defined); path-aware Step using a grid route check (strategic-layer pathfinding in `pathfinding.ts` is the pattern); slot spend/recovery data model.
+- **Plan changes made during M9 (delivered beyond / alongside the spec):** the frozen M1 pipeline test compiles an **exhaustive switch over `Effect["kind"]`**, so the `Effect` union is frozen at its M1 kinds — post-freeze effect kinds (M9's `SpendSpellSlot`, and every future one) extend **`AnyEffect`** in `src/core/effects/types.ts` and ship their own one-effect-one-event + replay contract tests; a **Move** action-mode button was added to the combat HUD (never casts — required once tile clicks could spend Breathe Fire slots); the cone template is a deterministic quarter-circle derivation vendored in `rules/srd/spell-breathe-fire.md` (cardinal 7 tiles / diagonal 8); the cone ignores walls until M11 line-of-effect (flagged `m9_cone_line_of_effect`).
 
-## M10 — Tactical character art pass (deferred on purpose)
-**Goal:** make combat *entities* look good, last, behind the seam — after maps and rules depth land.
-- **You can try:** placeholder entity boxes replaced with real GLB models (Tripo/Meshy) for party and foes; battle-map tiles from M8 unchanged; game otherwise unchanged.
-- **Loop self-check:** character/prop assets load via `GLTFLoader` from the manifest; not one line of core code changed.
-- **Stop signal:** "M10 done. Look at it."
-- **Model:** N/A (asset tools). Asset-tool MCPs become relevant here.
+## M10 — Initiative, reactions + conditions
+**Goal:** the PF2e action economy made real — rolled turn order, reactions (Attack of Opportunity), and a working condition set beyond flat-footed.
+- **Difficulty:** medium-hard. Reactions interrupt the strict turn flow — first real stress on the one-Effect-one-Event pipeline.
+- **You can try:** combat opens with rolled initiative interleaving party and foes; walking out of a Fighter's reach provokes a visible Attack of Opportunity; spells and hits apply frightened / prone / stunned / slowed with icons on the figure and effects you can feel (penalties, lost actions); conditions tick down visibly at turn boundaries.
+- **Loop self-check:** initiative is core state, deterministic from the seed, replayable from the event log; reactions resolve as normal pipeline effects (no side-channel mutation); each condition ships with a contract test for onset, mechanical effect, and expiry.
+- **Stop signal:** "M10 done. Watch initiative interleave, provoke an AoO, land a condition and watch it expire."
+- **Model:** premium for the reaction interrupt contract; standard per condition.
+- **Clarify first:** condition subset for this pass (proposal: frightened, prone, stunned, slowed, persistent damage — defer the rest); AoO per PF2e RAW (Fighter-only at low level) or universal for stronger XCOM-style zoning; reaction UX — auto-resolve or prompt the player when their reaction could trigger.
+- **Safe to start:** generalizing the condition framework (duration, value, expiry) from the existing `flat_footed`; initiative roll + re-sorted `turnOrder` (already an array in `state.ts`); deterministic seeded rolls (pattern exists in the resolver).
+
+## M11 — Line of sight, cover + friendly fire
+**Goal:** ranged combat respects the map — LoS, half/full cover, and allies in the firing line are at risk.
+- **Difficulty:** medium. Grid geometry is well-trodden; the rules decisions matter more than the math.
+- **You can try:** a wall blocks Ray of Frost and bow shots entirely (no target reticle through full cover); shooting past a cart or low rubble shows a half-cover AC bonus in the hover inspector; firing through a square occupied by your own Rogue warns you — and on a cover-caused miss the shot can hit the Rogue instead; enemy AI stops shooting through walls.
+- **Loop self-check:** LoS and cover are pure core functions on `MapGrid` with table-driven tests (corner cases literally — corners, diagonals, adjacent walls); friendly-fire redirection rides the pipeline as a normal resolution outcome; inspector shows the same cover math the resolver uses.
+- **Stop signal:** "M11 done. Get a shot blocked, see half cover in the inspector, and clip your own Rogue."
+- **Model:** premium for the LoS/cover geometry contract; standard for wiring.
+- **Clarify first:** the friendly-fire rule itself — PF2e RAW has no friendly fire for single-target attacks (an ally just grants the enemy cover), so this is a house rule: proposal — ally in line grants the target lesser cover, and a miss *caused by that cover bonus* strikes the ally instead; confirm or adjust. Also: which battle-map props are half vs full cover (needs a per-tile cover field in `MapGrid` + content-pack data — content decision per tileset); does full cover block targeting entirely or grant +4 AC?
+- **Safe to start:** tile-to-tile LoS function with tests; `MapGrid` cover field + pack validator extension; hover-inspector cover readout (inspector already computes from core math).
+
+## M12 — Smart tactical AI
+**Goal:** enemies that use everything M9–M11 built — cover, focus fire, conditions, range — per-archetype, replacing the greedy strike-or-step policy.
+- **Difficulty:** hard — the hardest single item on the board, which is why its dependencies were cleared first.
+- **You can try:** skirmishers kite to cover and shoot the squishiest reachable hero; bruisers body-block corridors and trigger AoOs deliberately; enemy casters open with save-targeting debuffs; wounded enemies pull back behind cover; each archetype reads differently within a couple of turns.
+- **Loop self-check:** AI is a pure core function `(state) → Action` riding the normal pipeline — no privileged mutation, no hidden state; scripted scenario tests assert behavior properties ("never shoots through full cover", "prefers flanking when reachable", "focuses lowest effective HP"); a full AI-vs-AI fight replays deterministically from the event log.
+- **Stop signal:** "M12 done. Lose a fight you'd have won against the old AI, and say why the enemy played well."
+- **Model:** premium for the utility-scoring framework and behavior contracts; standard per archetype profile.
+- **Clarify first:** how smart is *fun* — target band (punishing vs readable), and should archetypes have exploitable signature weaknesses on purpose? Does the AI get full map knowledge or respect LoS for target awareness (no fog-of-war system exists — full knowledge is the honest default)? Per-encounter difficulty tags now or wait for M20 difficulty settings?
+- **Safe to start:** utility-scoring skeleton replacing `chooseEnemyAction` (enumerate legal actions → score → pick), with the current greedy policy as the baseline profile; the headless scenario-test harness — both are pure-core and renderer-free.
+
+## M13 — Strategic pressure, campaign AI + win/lose
+**Goal:** the reclamation loop becomes a war — the enemy pushes back on a clock, and the campaign can be won and lost.
+- **Difficulty:** hard. New simulation layer over the campaign state, and the game's first real pacing/balance problem. Independent of M9–M12 — may be built earlier or in parallel if combat depth stalls.
+- **You can try:** travel and rest advance a visible campaign clock; held sites come under threat and fall back to hostile if ignored (with a warning window to respond); pressure escalates the longer the campaign runs; reclaiming everything (or a defined story objective) wins the campaign with a real ending screen; losing your foothold (or party wipe under permadeath later) loses it.
+- **Loop self-check:** the clock and every counterattack ride the campaign event pipeline (`campaign-apply.ts`) — deterministic, serialized, replayable; strategic AI is a pure function over campaign state; win/lose detection has contract tests; old saves migrate (campaign serialize version bump).
+- **Stop signal:** "M13 done. Ignore a threatened site and lose it; push through and see the victory screen."
+- **Model:** premium for the campaign-clock contract and strategic AI; standard for UI.
+- **Clarify first:** what winning *means* in the Emberwatch fiction (all districts held? a final site/boss? — story decision, ties into M16); what the clock ticks on (travel steps? per fight? real days are out); can safe havens fall (proposal: threatened but never permanently lost — Battle Brothers-style harshness is a dial); how punishing recapture is (full re-fight vs weakened garrison fight).
+- **Safe to start:** campaign clock + `SiteThreatened` / `SiteRetaken` events through the existing pipeline; data-driven scheduled raids (escalation table) as the v1 "AI" before anything smart; win/lose state detection + screens.
+
+## M14 — Equipment, inventory, loot + economy
+**Goal:** items exist — gear slots drive combat stats, fights drop loot, gold buys gear at safe havens. The reward loop.
+- **Difficulty:** hard. Wide surface: core data model, derivation rewrite, loot tables, shop UI, serialization, balance. No dependency on M9–M13.
+- **You can try:** each hero has weapon / armor / 2 trinket slots; swap the Fighter's shortbow for a looted longbow and watch the inspector numbers change; win a fight and pick up dropped loot; sell it at Fishrow Market and buy armor with the gold; the party sheet shows a shared inventory.
+- **Loop self-check:** items are core data validated like everything else; `derive.ts` reads equipped items (the fixed `defaultWeapon` class kit becomes just the starting loadout); party + inventory round-trip through campaign serialize; loot tables live in content packs and pass the pack validator; shop math (buy/sell/gold) headless with contract tests.
+- **Stop signal:** "M14 done. Loot a weapon, equip it, see the numbers move, sell the rest, buy armor."
+- **Model:** premium for the equipment/derivation contract; standard for shop + UI.
+- **Clarify first:** depth target — lightweight slots (weapon/armor/trinkets, proposal) vs BG-style paper-doll vs Battle Brothers grid+durability; magic items and item identification in or out (proposal: out until M17); encumbrance (proposal: no); price model and gold curve (needs a balance pass with M15's XP curve).
+- **Safe to start:** item types + equipment slots in core with validation; `derive.ts` refactor from `defaultWeapon` to equipped-weapon (mechanical, well-tested already); serialize round-trip; loot-table schema in the pack validator.
+
+## M15 — Progression: XP + levels
+**Goal:** characters grow — XP from fights and objectives, PF2e leveling with visible choices at level-up.
+- **Difficulty:** medium-hard. The math is SRD-defined; the cost is content (feats/spells per level) and the level-up UI. Pairs naturally with M14 — both rewire character derivation.
+- **You can try:** winning fights banks XP; at level-up a screen offers the level's choices (HP, proficiency steps, ability boosts, new spell for the Wizard, feat picks from a scoped list); a level-3 party visibly outclasses the level-1 encounters that used to be hard.
+- **Loop self-check:** XP accrual is computed from the campaign event log (no new mutation path); leveling math validates against the vendored SRD; a leveled character round-trips serialize; derivation tests cover each level band.
+- **Stop signal:** "M15 done. Level the party to 3, make real choices on the way, feel the power difference."
+- **Model:** standard; premium only if feat interactions get hairy.
+- **Clarify first:** level band for this pass (proposal: 1–5 — feat/spell content grows fast per level); XP sources and weights (combat only, or site-cleared/quest bonuses); the feat subset per class (SRD vendoring task, like M2/M7); retraining/respec (proposal: out).
+- **Safe to start:** XP accrual from existing victory events; `level` on the character model + derivation scaling per SRD; level-up screen reusing the creation screen's point-allocation UX.
+
+## M16 — Story, quests, dialogue + skill checks
+**Goal:** the BG-shaped layer — an authored campaign arc that advances with reclamation, side quests, dialogue with choices, and trained skills that finally roll dice.
+- **Difficulty:** medium-hard as a system; the real cost is authored content. Depends on M14/M15 so quests can pay XP, loot, and gold; ties into M13's win condition.
+- **You can try:** a main questline advances as districts flip to held, told in dialogue scenes with real choices; NPCs at safe havens offer side quests with stakes and rewards; a locked vault yields to a Thievery check, a nervous informant to Diplomacy — visible rolls using the skills picked at creation; a journal tracks active and finished quests.
+- **Loop self-check:** quest state is a machine on campaign state driven by campaign events (replayable, serialized); skill checks resolve headless in core per SRD (roll + proficiency vs DC) with contract tests; dialogue content lives in content packs and passes the validator; the narrator seam is unchanged — story beats still consume the event log.
+- **Stop signal:** "M16 done. Take a side quest, pass a skill check you built for at creation, finish a story chapter."
+- **Model:** premium for the quest-state contract; standard for content wiring. Story *text* is authored content — outline needs human sign-off before the loop writes prose.
+- **Clarify first:** the story itself — premise, chapter beats, and ending(s) need a human-approved outline (biggest open item on the whole board; also settles M13's win fiction); dialogue depth (proposal: choice cards with consequences, not full branching trees); do failed skill checks block content or route it (proposal: route, never hard-block); runtime LLM narrator stays out of scope?
+- **Safe to start:** skill-check resolution in core (SRD math, mirrors the attack resolver); quest state machine + journal model on campaign events; dialogue-scene schema in the pack validator. Content waits on the outline.
+
+## M17 — Bestiary + spell breadth
+**Goal:** content width on the finished rules — a real monster roster and fuller spell lists that *use* saves, conditions, resistances, and cover.
+- **Difficulty:** medium. Each entry is the proven add-action/add-effect pattern; the volume is the work. Wants M9/M10 (saves, conditions) so monsters have real abilities; magic items fold in here on M14's item system.
+- **You can try:** distinct enemy families (undead that shrug off frost, swarms weak to area damage, cultist casters who debuff, a boss with phases) spread across the districts by theme; Wizard and Cleric pick from 2–3 real spells per level; enemy casters answer in kind; the first magic items drop.
+- **Loop self-check:** every monster ability and spell ships with its contract test on the existing pipeline (no new mutation paths); bestiary entries live in content packs and pass the validator; resistance/save/condition hooks from M9/M10 are exercised, not bypassed.
+- **Stop signal:** "M17 done. Fight three enemy families that demand different tactics, and cast a new spell per caster."
+- **Model:** standard throughout — this is the milestone the `add-effect` / `add-action` candidate skills were named for.
+- **Clarify first:** the roster brief (which families, how many, boss count — content decision); the spell list per class (SRD vendoring + scope sign-off); magic-item power band.
+- **Safe to start:** nothing blocked once M9/M10 land — pick any roster entry and run the pattern; the SRD vendoring checklist can be prepared earlier.
+
+## M18 — Figurines, facing + combat animations *(subsumes old M10)*
+**Goal:** the tactical board comes alive — a figurine per character, NPC, and monster that shows its gear and faces the way it's heading, with real attack and spell animations.
+- **Difficulty:** medium code, heavy asset pipeline — kept late on purpose (art last, behind the seam), and gear-reflective looks need M14.
+- **You can try:** every combatant is a readable figurine (GLB via Tripo/Meshy) instead of a box; figures turn to face movement and attack targets; the Fighter's looted longbow is visibly in hand after equipping (weapon swap at minimum); strikes, Ray of Frost, Heal, and M17 spells each get distinct cast/projectile/impact animations; downed figures slump.
+- **Loop self-check:** all character/prop assets load via `GLTFLoader` from the manifest (pack-swappable like M8 maps); facing and animation state are renderer-derived from the event log — not one line of core code changed, frozen contract tests untouched; missing models fall back to flagged placeholder boxes per the standing rule.
+- **Stop signal:** "M18 done. Watch a fight and enjoy it — figures face, swing, cast, and fall."
+- **Model:** N/A for asset generation (out-of-loop tools, asset-tool MCPs); standard for loader/animation wiring.
+- **Clarify first:** is facing *mechanical* (rear attacks count as flanking?) or visual-only — if mechanical it's a core rules change that belongs back in M10/M11, decide before building (proposal: visual-only; flanking is already positional); gear-visibility depth (weapon-in-hand only, proposal, vs armor tiers changing the silhouette); art style guide + generation pipeline; animation set per action (one generic cast vs per-spell).
+- **Safe to start:** facing as a renderer concern derived from last move/strike direction (zero core change — could even ship early on the placeholder boxes); manifest plumbing for per-class/per-monster GLB ids; animation-event mapping from the existing combat event log.
+
+## M19 — Roster, injuries, rest + recovery
+**Goal:** the Battle Brothers layer — a roster bigger than the deployed four, recruitment at safe havens, lasting injuries, optional permadeath, and a rest/camp system that ties recovery to M13's clock.
+- **Difficulty:** medium. Mostly composition of existing systems (creation flow, campaign clock, slots/HP).
+- **You can try:** hire a recruit at Fishrow Market into a roster of up to ~8 and pick 4 to deploy per fight; a hero downed in battle survives with an injury that needs downtime to heal; resting at a safe haven (or camping on the road, riskier) recovers HP, spell slots, and injury timers — but advances the campaign clock while the enemy moves; an optional permadeath toggle makes downed-and-unrecovered heroes die for good, replaceable only by recruits.
+- **Loop self-check:** roster/deployment/injury state is core campaign data, serialized and replayable; rest rides the campaign clock pipeline from M13; injury effects ride the condition framework from M10; recruitment reuses creation validation; permadeath is a campaign flag with contract tests on both settings.
+- **Stop signal:** "M19 done. Get a hero wounded, bench them to heal, hire and deploy a replacement, and feel the clock cost."
+- **Model:** standard.
+- **Clarify first:** permadeath default (proposal: off by default, chosen at campaign start, no mid-run switch); roster cap and hiring cost curve (ties to M14 gold); injury severity model (proposal: 2 tiers — bruised heals on any rest, wounded needs safe-haven downtime); does camping on the road invite ambush encounters?
+- **Safe to start:** rest action recovering HP/slots (slots exist from M9); roster + deployment data model with serialize round-trip; recruitment screen reusing the creation screen.
+
+## M20 — QoL: audio, save slots, difficulty + settings
+**Goal:** the expected-everywhere layer — music and SFX, multiple saves with autosave, difficulty settings, an options menu.
+- **Difficulty:** low. Deliberately last; every earlier milestone makes its knobs and hooks more meaningful.
+- **You can try:** ambient music per map layer and combat stings, SFX for strikes/spells/UI; three+ save slots plus rotating autosave (on travel and combat end) with load-from-menu; difficulty chosen at campaign start (scales encounter strength and M13 pressure pacing); an options menu with volume sliders, animation-speed toggle, and the permadeath flag from M19.
+- **Loop self-check:** audio assets ride the manifest/content-pack seam (badged placeholders when missing, per the standing rule); save slots wrap the existing campaign serialize (slot management is pure renderer/storage — core unchanged); difficulty is campaign data consumed by encounter building and M13 pacing, contract-tested at each setting; narrator/audio toggles change nothing mechanical.
+- **Stop signal:** "M20 done. Hear it, save in three slots, lose an autosave-recovered fight on hard."
+- **Model:** standard. Audio *content* is out-of-loop sourcing like art.
+- **Clarify first:** audio sourcing (generated? licensed packs? — budget/taste call); difficulty knobs (proposal: enemy count + strategic-pressure pacing, never flat damage cheats); web-only `localStorage` saves or file export too?
+- **Safe to start:** save-slot management over the existing serialize (could ship today); autosave hooks on travel/combat-end events; options-menu shell. Audio waits on sourcing.
 
 ---
 

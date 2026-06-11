@@ -6,7 +6,9 @@ import type { CampaignState, WorldGraph } from "./types";
 export type CampaignEffect =
   | { kind: "TravelTo"; effectId: string; targetSiteId: SiteId }
   | { kind: "RecordStoryBeat"; effectId: string; beatId: BeatId; siteId: SiteId }
-  | { kind: "MarkSiteHeld"; effectId: string; siteId: SiteId };
+  | { kind: "MarkSiteHeld"; effectId: string; siteId: SiteId }
+  /** Free re-preparation at a safe haven — PROCEDURAL stand-in until M19 rest. */
+  | { kind: "PrepareSpellSlots"; effectId: string; siteId: SiteId };
 
 export interface CampaignApplyContext {
   seq: number;
@@ -76,6 +78,15 @@ function buildCampaignEvent(
           from_effect: effect.effectId,
         },
       };
+    case "PrepareSpellSlots":
+      return {
+        ...base,
+        type: "SpellSlotsPrepared",
+        payload: {
+          site_id: effect.siteId,
+          from_effect: effect.effectId,
+        },
+      };
   }
 }
 
@@ -88,6 +99,18 @@ function reduceCampaign(effect: CampaignEffect, draft: CampaignState): void {
       break;
     case "MarkSiteHeld":
       draft.siteControl = { ...draft.siteControl, [effect.siteId]: "held" };
+      break;
+    case "PrepareSpellSlots":
+      draft.party = {
+        members: draft.party.members.map((member) =>
+          member.spellSlots
+            ? {
+                ...member,
+                spellSlots: member.spellSlots.map((slot) => ({ ...slot, expended: false })),
+              }
+            : member,
+        ) as CampaignState["party"]["members"],
+      };
       break;
   }
 }

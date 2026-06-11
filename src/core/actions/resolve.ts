@@ -1,16 +1,21 @@
 import type { EntityId } from "../../shared/ids";
 import type { Action } from "./types";
-import type { Effect } from "../effects/types";
-import type { DamageType, GameState } from "../types";
+import type { AnyEffect } from "../effects/types";
+import type { DamageType, Entity, GameState, SaveKind } from "../types";
 import type { Rng } from "../rng";
 import { attackHits } from "../combat/attack";
 import { effectiveAc, isFlanking } from "../combat/flanking";
 import { canTargetAlly, canTargetEnemy, isInRange } from "../combat/range";
-import { isInBounds, isTileBlocked, isTileOccupied, manhattanDistance } from "../combat/grid";
-import { damageSpellDef, healSpellDef } from "../characters/subset";
+import { isInBounds, isTileBlocked, isTileOccupied } from "../combat/grid";
+import { findStepPath } from "../combat/path";
+import { coneTiles } from "../combat/cone";
+import { adjustDamage } from "../combat/damage";
+import { basicSaveDamage, rollSave } from "../combat/save";
+import { coneSpellDef, damageSpellDef, healSpellDef, spellRank } from "../characters/subset";
+import type { SpellId } from "../characters/subset";
 
 export interface ResolveResult {
-  effects: Effect[];
+  effects: AnyEffect[];
   events?: never;
 }
 
@@ -41,9 +46,26 @@ export function resolveAction(action: Action, state: GameState, rng: Rng): Resol
       return resolveCastSpell(action, state, rng);
     case "CastHeal":
       return resolveCastHeal(action, state, rng);
+    case "CastConeSpell":
+      return resolveCastConeSpell(action, state, rng);
     case "EndTurn":
       return resolveEndTurn(action, state);
   }
+}
+
+/**
+ * Slot enforcement is opt-in (rules/srd/spell-slots.md): entities without a
+ * spellSlots pool cast unrestricted (frozen M7 contracts). Cantrips never
+ * consume slots. Font slots are spent before regular ones.
+ */
+function findSlotToSpend(actor: Entity, spellId: SpellId): { slotId: string } | "none" | null {
+  if (!actor.spellSlots || spellRank(spellId) === 0) return null;
+  const candidates = actor.spellSlots.filter(
+    (slot) => !slot.expended && slot.preparedSpellId === spellId,
+  );
+  if (candidates.length === 0) return "none";
+  const font = candidates.find((slot) => slot.fontOnly);
+  return { slotId: (font ?? candidates[0]!).id };
 }
 
 function resolveStep(
@@ -61,10 +83,6 @@ function resolveStep(
     return { effects: [] };
   }
 
-  const distance = manhattanDistance(actor.x, actor.y, action.x, action.y);
-  if (distance < 1 || distance > actor.actionPoints) {
-    return { effects: [] };
-  }
   if (!isInBounds(state, action.x, action.y)) {
     return { effects: [] };
   }
@@ -74,6 +92,11 @@ function resolveStep(
   if (isTileOccupied(state, action.x, action.y, action.actorId)) {
     return { effects: [] };
   }
+  // Path-aware (M9): a passable route within AP must exist; cost = route length.
+  const path = findStepPath(state, action.actorId, action.x, action.y, actor.actionPoints);
+  if (!path || path.length < 1) {
+    return { effects: [] };
+  }
 
   return {
     effects: [
@@ -81,7 +104,7 @@ function resolveStep(
         kind: "SpendActionPoints",
         effectId: `${action.actionId}_ap`,
         entityId: action.actorId,
-        amount: distance,
+        amount: path.length,
       },
       {
         kind: "MoveTo",
@@ -120,7 +143,7 @@ function resolveStrike(
     return { effects: [] };
   }
 
-  const effects: Effect[] = [
+  const effects: AnyEffect[] = [
     {
       kind: "SpendActionPoints",
       effectId: `${action.actionId}_ap`,
@@ -171,6 +194,11 @@ function resolveStrike(
       damage += sneakRolls.reduce((sum, roll) => sum + roll, 0);
     }
 
+    const adjustment = adjustDamage(target, damage, damageType);
+    if (adjustment) {
+      damage = adjustment.final;
+    }
+
     effects.push({
       kind: "Damage",
       effectId: `${action.actionId}_dmg`,
@@ -189,6 +217,7 @@ function resolveStrike(
         damageModifier: actor.damage.modifier,
         sneakRolls,
       },
+      ...(adjustment ? { damageAdjustment: adjustment } : {}),
     });
 
     const hpAfter = Math.max(0, target.hp - damage);
@@ -252,7 +281,7 @@ function resolveCastSpell(
     return { effects: [] };
   }
 
-  const effects: Effect[] = [
+  const effects: AnyEffect[] = [
     {
       kind: "SpendActionPoints",
       effectId: `${action.actionId}_ap`,
@@ -270,7 +299,12 @@ function resolveCastSpell(
 
   if (hit) {
     const damageRolls = rollDice(rng, spell.damage.count, spell.damage.sides);
-    const damage = sumDice(damageRolls, 0);
+    let damage = sumDice(damageRolls, 0);
+
+    const adjustment = adjustDamage(target, damage, damageType);
+    if (adjustment) {
+      damage = adjustment.final;
+    }
 
     effects.push({
       kind: "Damage",
@@ -289,6 +323,7 @@ function resolveCastSpell(
         damageRolls,
         damageModifier: 0,
       },
+      ...(adjustment ? { damageAdjustment: adjustment } : {}),
     });
 
     const hpAfter = Math.max(0, target.hp - damage);
@@ -355,6 +390,12 @@ function resolveCastHeal(
     return { effects: [] };
   }
 
+  // Heal is a rank-1 leveled spell from M9 on — slot enforcement is opt-in.
+  const slot = findSlotToSpend(actor, action.spellId);
+  if (slot === "none") {
+    return { effects: [] };
+  }
+
   const healRolls = rollDice(rng, spell.heal.count, spell.heal.sides);
   const rolled = sumDice(healRolls, spell.heal.flatBonus);
   const amount = Math.min(rolled, target.maxHp - target.hp);
@@ -367,6 +408,16 @@ function resolveCastHeal(
         entityId: action.actorId,
         amount: spell.actionCost,
       },
+      ...(slot
+        ? [
+            {
+              kind: "SpendSpellSlot",
+              effectId: `${action.actionId}_slot`,
+              entityId: action.actorId,
+              slotId: slot.slotId,
+            } satisfies AnyEffect,
+          ]
+        : []),
       {
         kind: "Heal",
         effectId: `${action.actionId}_heal`,
@@ -382,6 +433,112 @@ function resolveCastHeal(
   };
 }
 
+/** Breathe Fire — cone, basic Reflex save, friendly fire per RAW (rules/srd/spell-breathe-fire.md). */
+function resolveCastConeSpell(
+  action: Extract<Action, { kind: "CastConeSpell" }>,
+  state: GameState,
+  rng: Rng,
+): ResolveResult {
+  const actor = state.entities[action.actorId];
+  if (!actor || actor.downed) {
+    return { effects: [] };
+  }
+  if (state.combat.activeActorId !== action.actorId) {
+    return { effects: [] };
+  }
+  if (state.combat.phase !== "active") {
+    return { effects: [] };
+  }
+  if (!actor.knownSpells.includes(action.spellId)) {
+    return { effects: [] };
+  }
+  if (action.spellId !== "breathe_fire") {
+    return { effects: [] };
+  }
+
+  const spell = coneSpellDef(action.spellId);
+  if (actor.actionPoints < spell.actionCost) {
+    return { effects: [] };
+  }
+
+  const tiles = coneTiles(actor.x, actor.y, action.targetX, action.targetY, spell.coneLengthTiles);
+  if (!tiles.some((t) => t.x === action.targetX && t.y === action.targetY)) {
+    return { effects: [] };
+  }
+
+  const slot = findSlotToSpend(actor, action.spellId);
+  if (slot === "none") {
+    return { effects: [] };
+  }
+
+  const effects: AnyEffect[] = [
+    {
+      kind: "SpendActionPoints",
+      effectId: `${action.actionId}_ap`,
+      entityId: action.actorId,
+      amount: spell.actionCost,
+    },
+  ];
+  if (slot) {
+    effects.push({
+      kind: "SpendSpellSlot",
+      effectId: `${action.actionId}_slot`,
+      entityId: action.actorId,
+      slotId: slot.slotId,
+    });
+  }
+
+  // One damage roll for all targets; each creature in the area saves on its own.
+  const damageRolls = rollDice(rng, spell.damage.count, spell.damage.sides);
+  const baseDamage = sumDice(damageRolls, 0);
+  const damageType = spell.damageType as DamageType;
+  const saveKind = spell.save as SaveKind;
+
+  const targets = state.combat.turnOrder
+    .map((id) => state.entities[id])
+    .filter((entity): entity is Entity => Boolean(entity))
+    .filter((entity) => !entity.downed && entity.id !== actor.id)
+    .filter((entity) => tiles.some((t) => t.x === entity.x && t.y === entity.y));
+
+  for (const target of targets) {
+    const save = rollSave(rng, target.saves[saveKind], actor.spellDc);
+    const outcomeDamage = basicSaveDamage(baseDamage, save.outcome);
+    const adjustment = adjustDamage(target, outcomeDamage, damageType);
+    const finalDamage = adjustment?.final ?? outcomeDamage;
+
+    effects.push({
+      kind: "Damage",
+      effectId: `${action.actionId}_dmg_${target.id}`,
+      targetId: target.id,
+      amount: finalDamage,
+      damageType,
+      saveResolution: {
+        saveKind,
+        d20Natural: save.d20Natural,
+        saveModifier: target.saves[saveKind],
+        saveTotal: save.saveTotal,
+        dc: actor.spellDc,
+        outcome: save.outcome,
+        spellLabel: spell.label,
+        damageRolls,
+        baseDamage,
+        outcomeDamage,
+      },
+      ...(adjustment ? { damageAdjustment: adjustment } : {}),
+    });
+
+    if (finalDamage >= target.hp) {
+      effects.push({
+        kind: "EntityDowned",
+        effectId: `${action.actionId}_down_${target.id}`,
+        entityId: target.id,
+      });
+    }
+  }
+
+  return { effects };
+}
+
 function nextLivingActor(state: GameState, currentId: EntityId): EntityId | null {
   const order = state.combat.turnOrder;
   const start = order.indexOf(currentId);
@@ -395,7 +552,7 @@ function nextLivingActor(state: GameState, currentId: EntityId): EntityId | null
   return null;
 }
 
-function checkCombatEnd(state: GameState): Effect | null {
+function checkCombatEnd(state: GameState): AnyEffect | null {
   const partyAlive = Object.values(state.entities).some((e) => e.team === "party" && !e.downed);
   const enemiesAlive = Object.values(state.entities).some((e) => e.team === "enemy" && !e.downed);
 
@@ -436,7 +593,7 @@ function resolveEndTurn(
   };
 }
 
-export function postActionEffects(state: GameState): Effect[] {
+export function postActionEffects(state: GameState): AnyEffect[] {
   const end = checkCombatEnd(state);
   return end ? [end] : [];
 }

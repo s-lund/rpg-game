@@ -13,6 +13,10 @@ import {
   chooseEnemyAction,
   inspectTarget,
   spellDef,
+  coneSpellDef,
+  coneTiles,
+  prepareSpellSlotsAtHaven,
+  resolveSiteKind,
   markSiteHeld,
   shouldFightOnArrival,
   enterDistrict,
@@ -383,7 +387,7 @@ function buildAcceptanceItems() {
       id: "m7_procedural_flags",
       label: "M7 placeholders flagged in overlay",
       proof: "overlay" as const,
-      how: "F3/~ lists combat_projectiles, combat_inspector, m7_spell_rules as PROCEDURAL",
+      how: "F3/~ lists combat_projectiles, combat_inspector as PROCEDURAL (m7_spell_rules superseded by real M9 slot rules)",
     },
     {
       id: "m8_world_map_art",
@@ -421,6 +425,42 @@ function buildAcceptanceItems() {
       proof: "test" as const,
       how: "npm run test — content-packs.test.ts, battle-map.test.ts, blocked-terrain.test.ts",
     },
+    {
+      id: "m9_basic_saves",
+      label: "Breathe Fire — basic Reflex saves in the log",
+      proof: "visual" as const,
+      how: "Wizard: pick Breathe Fire, hover a tile for the cone preview, cast — the combat log shows each creature's Reflex save (crit/success/fail) and the resulting damage",
+    },
+    {
+      id: "m9_resistance_weakness",
+      label: "Resistance and weakness adjust damage",
+      proof: "visual" as const,
+      how: "fight the Ashen Road (ember mobs resist fire 3, weak to cold 2) and the Drowned Quay (drowned mobs resist cold 3, weak to fire 2) — hover inspector and log show the adjusted numbers",
+    },
+    {
+      id: "m9_spell_slots",
+      label: "Leveled spells consume per-day slots",
+      proof: "visual" as const,
+      how: "HUD shows slots per hero (Wizard 2× Breathe Fire; Cleric 6× Heal incl. 4 divine font); casting spends a slot in the log; buttons disable at 0; Ray of Frost stays at-will",
+    },
+    {
+      id: "m9_slot_recovery",
+      label: "Safe-haven rest restores slots (interim)",
+      proof: "overlay" as const,
+      how: "travel to a shelter site (e.g. Pilgrim's Rest) with expended slots — narration notes re-preparation; F3/~ lists m9_slot_recovery as PROCEDURAL until M19 rest",
+    },
+    {
+      id: "m9_path_aware_step",
+      label: "Movement can no longer cross walls",
+      proof: "visual" as const,
+      how: "on a battle map with walls, click a tile behind a wall — the hero only moves if a route exists within AP, and the AP cost equals the route length",
+    },
+    {
+      id: "m9_contract_tests",
+      label: "M9 combat-depth contracts",
+      proof: "test" as const,
+      how: "npm run test — save-resolution, resistance-weakness, spell-slots, path-aware-step, cone-template tests",
+    },
   ];
 }
 
@@ -452,9 +492,9 @@ function init(): void {
     "battle_map_tilesets",
     "M8 themed battle-map tiles/walls/props from content pack tilesets (vector colors; textured art later)",
   );
-  presence.registerProcedural(
+  presence.registerRendered(
     "battle_map_blocking",
-    "M8 blocked terrain stops landing on walls; Step has no path check yet (jump-over possible)",
+    "M9 path-aware Step — blocked terrain can neither be landed on nor crossed; AP cost = route length",
   );
   presence.registerProcedural(
     "tile_grid",
@@ -563,9 +603,17 @@ function init(): void {
     "combat_inspector",
     "M7 hover target breakdown — pure-core math, DOM overlay",
   );
+  presence.registerRendered(
+    "m9_spell_rules",
+    "M9 saves, resistance/weakness, slots, Breathe Fire from vendored SRD (rules/srd/m9-subset.json)",
+  );
   presence.registerProcedural(
-    "m7_spell_rules",
-    "M7 Ray of Frost + Heal from vendored SRD subset — no spell slots yet",
+    "m9_slot_recovery",
+    "free slot re-preparation on arriving at a safe haven — PROCEDURAL stand-in until M19 rest",
+  );
+  presence.registerProcedural(
+    "m9_cone_line_of_effect",
+    "Breathe Fire cone ignores walls — line of sight/effect arrives in M11",
   );
 
   const devOverlay = new DevOverlay(import.meta.env.DEV);
@@ -835,9 +883,28 @@ function init(): void {
       combatScene.setRangeHighlight(activeId, spellDef("ray_of_frost").rangeTiles);
     } else if (mode === "cast_heal") {
       combatScene.setRangeHighlight(activeId, spellDef("heal_ranged").rangeTiles);
+    } else if (mode === "cast_cone") {
+      combatScene.setRangeHighlight(activeId, coneSpellDef("breathe_fire").coneLengthTiles);
+    } else if (mode === "move") {
+      combatScene.setRangeHighlight(activeId, actor.actionPoints);
     } else {
       combatScene.setRangeHighlight(activeId, actor.strikeRange);
     }
+    if (mode !== "cast_cone") {
+      combatScene.setAreaHighlight(null);
+    }
+  }
+
+  function dispatchConeCast(actorId: EntityId, targetX: number, targetY: number): boolean {
+    if (!combatSession) return false;
+    return combatSession.dispatch({
+      kind: "CastConeSpell",
+      actionId: `act_cast_cone_${Date.now()}`,
+      actorId,
+      spellId: "breathe_fire",
+      targetX,
+      targetY,
+    });
   }
 
   function dispatchCombatAction(
@@ -912,7 +979,14 @@ function init(): void {
       const actor = state.entities[selectedId as EntityId];
       if (!actor || actor.team !== "party") return;
 
-      if (mode === "cast_heal") return;
+      if (mode === "cast_heal" || mode === "move") return;
+
+      if (mode === "cast_cone") {
+        // Aim the cone at the enemy's tile (allies in the template are hit too).
+        const acted = dispatchConeCast(selectedId as EntityId, entity.x, entity.y);
+        if (acted) refreshHudAndOverlay();
+        return;
+      }
 
       const acted = dispatchCombatAction(selectedId as EntityId, pick.entityId as EntityId, mode);
       if (acted) refreshHudAndOverlay();
@@ -921,6 +995,12 @@ function init(): void {
 
     const selectedId = combatScene.getSelectedEntity();
     if (!selectedId || selectedId !== activeId) return;
+
+    if ((combatHud?.getActionMode() ?? "strike") === "cast_cone") {
+      const acted = dispatchConeCast(selectedId as EntityId, pick.x, pick.y);
+      if (acted) refreshHudAndOverlay();
+      return;
+    }
 
     const acted = combatSession.dispatch({
       kind: "Step",
@@ -946,19 +1026,45 @@ function init(): void {
     pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
     const pick = combatScene.pick(camera, pointer);
+
+    const actor = state.entities[activeId];
+    const hudMode = actor ? inspectModeForActor(actor.classId, combatHud.getActionMode()) : "strike";
+
+    // Breathe Fire cone preview on whatever tile/entity is hovered.
+    if (actor?.team === "party" && hudMode === "cast_cone" && pick) {
+      const aimX = pick.kind === "entity" ? state.entities[pick.entityId as EntityId]?.x : pick.x;
+      const aimY = pick.kind === "entity" ? state.entities[pick.entityId as EntityId]?.y : pick.y;
+      if (aimX !== undefined && aimY !== undefined) {
+        const tiles = coneTiles(
+          actor.x,
+          actor.y,
+          aimX,
+          aimY,
+          coneSpellDef("breathe_fire").coneLengthTiles,
+        ).filter((t) => t.x >= 0 && t.y >= 0 && t.x < state.map.width && t.y < state.map.height);
+        combatScene.setAreaHighlight(tiles.length > 0 ? tiles : null);
+      }
+    } else {
+      combatScene.setAreaHighlight(null);
+    }
+
     if (!pick || pick.kind !== "entity") {
       combatHud.hideInspector();
       return;
     }
 
     const entity = state.entities[pick.entityId as EntityId];
-    const actor = state.entities[activeId];
     if (!entity || !actor || actor.team !== "party") {
       combatHud.hideInspector();
       return;
     }
 
-    const mode = inspectModeForActor(actor.classId, combatHud.getActionMode());
+    const mode = hudMode;
+    if (mode === "move") {
+      // Move never casts — no target inspection, just reposition freely.
+      combatHud.hideInspector();
+      return;
+    }
     if (mode !== "cast_heal" && entity.downed) {
       combatHud.hideInspector();
       return;
@@ -969,14 +1075,21 @@ function init(): void {
         combatHud.hideInspector();
         return;
       }
-    } else if (entity.team !== "enemy") {
+    } else if (mode !== "cast_cone" && entity.team !== "enemy") {
+      // Breathe Fire inspects allies too — they take friendly fire in the cone.
       combatHud.hideInspector();
       return;
     }
 
     const inspectKind = actionModeToInspectKind(mode);
     const spellId =
-      mode === "cast_spell" ? "ray_of_frost" : mode === "cast_heal" ? "heal_ranged" : undefined;
+      mode === "cast_spell"
+        ? "ray_of_frost"
+        : mode === "cast_cone"
+          ? "breathe_fire"
+          : mode === "cast_heal"
+            ? "heal_ranged"
+            : undefined;
     const info = inspectTarget(state, activeId, pick.entityId as EntityId, inspectKind, spellId);
     if (!info) {
       combatHud.hideInspector();
@@ -1279,7 +1392,24 @@ function init(): void {
     if (!worldMapSession) return;
     const state = worldMapSession.getState();
     const site = activeWorld.worldGraph.sites.find((s) => s.id === siteId);
-    if (!site || !shouldFightOnArrival(state, site)) return;
+    if (!site) return;
+
+    // Safe haven: free re-preparation of spell slots (PROCEDURAL until M19 rest).
+    if (resolveSiteKind(site) === "shelter") {
+      const prepared = prepareSpellSlotsAtHaven(state, activeWorld.worldGraph);
+      if (prepared.ok && prepared.events.length > 0) {
+        worldMapSession.replaceState(prepared.state);
+        persistCampaign(prepared.state);
+        if (narratorPanel.isEnabled()) {
+          narratorPanel.appendCurrentLine(
+            "The party rests in safety; expended spells are prepared anew.",
+          );
+        }
+      }
+      return;
+    }
+
+    if (!shouldFightOnArrival(state, site)) return;
 
     worldMapScreen.hide();
     narratorPanel.hide();
@@ -1403,7 +1533,7 @@ function init(): void {
       startCombat,
     };
     console.info(
-      "[EMBERWATCH] M8 — illustrated content packs (world, districts, battle maps); F3/~ overlay",
+      "[EMBERWATCH] M9 — combat rules depth (saves, resistance/weakness, spell slots, path-aware Step); F3/~ overlay",
       { manifestSummary, selectedPackId },
     );
   }

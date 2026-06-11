@@ -8,6 +8,7 @@ import {
   validateStoryBeat,
   validateTravelTo,
 } from "./campaign-apply";
+import { resolveSiteKind } from "./site-kinds";
 import type { CampaignState, TravelResult, WorldGraph } from "./types";
 import { validateWorldGraph } from "./validate";
 
@@ -77,6 +78,48 @@ export function travelTo(
   const actionId = `act_travel_${targetSiteId}`;
   const { state: next, events } = applyCampaignEffect(
     { kind: "TravelTo", effectId, targetSiteId },
+    state,
+    {
+      seq: state.nextSeq,
+      actorId: defaultCampaignActorId(state),
+      actionId,
+    },
+  );
+
+  return {
+    ok: true,
+    state: { ...next, nextSeq: next.nextSeq + 1 },
+    events,
+  };
+}
+
+/**
+ * Free re-preparation at a safe haven (shelter site) — interim recovery,
+ * flagged PROCEDURAL until M19 rest (rules/srd/spell-slots.md). No-op when
+ * nothing is expended, so arrival never spams events.
+ */
+export function prepareSpellSlotsAtHaven(
+  state: CampaignState,
+  graph: WorldGraph,
+): TravelResult {
+  const site = graph.sites.find((s) => s.id === state.currentSiteId);
+  if (!site) {
+    return { ok: false, errors: [`unknown site: ${state.currentSiteId}`] };
+  }
+  if (resolveSiteKind(site) !== "shelter") {
+    return { ok: false, errors: [`site ${site.id} is not a safe haven`] };
+  }
+  const anyExpended = state.party.members.some((m) =>
+    m.spellSlots?.some((slot) => slot.expended),
+  );
+  if (!anyExpended) {
+    return { ok: true, state, events: [] };
+  }
+
+  const effectId = `eff_prepare_${state.nextSeq}`;
+  const actionId = `act_prepare_${site.id}`;
+  const { state: next, events } = applyCampaignEffect(
+    { kind: "PrepareSpellSlots", effectId, siteId: site.id },
     state,
     {
       seq: state.nextSeq,

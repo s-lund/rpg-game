@@ -2,8 +2,8 @@
 
 Build progress for EMBERWATCH. Milestone definitions live in `ROADMAP.md`.
 
-**Current milestone:** M8 (gate 2 — human acceptance pending)  
-**Last updated:** 2026-06-11 — M8 gate 1 complete
+**Current milestone:** M10 (not started — M9 accepted)  
+**Last updated:** 2026-06-11 — M9 gate 2 accepted (saves, resistance/weakness, spell slots, path-aware Step)
 
 ---
 
@@ -17,11 +17,23 @@ Build progress for EMBERWATCH. Milestone definitions live in `ROADMAP.md`.
 | M3 World map: travel | **done** | pass | accepted |
 | M4 World ↔ combat transition | **done** | pass | accepted |
 | M5 Storytelling | **done** | pass | accepted |
-| M6 District generation | **gate 1 done** | pass | pending |
-| M7 Breadth + ranged combat | **gate 1 done** | pass | pending |
-| M8 Map presentation + content packs | **gate 1 done** | pass | pending |
-| M9 Combat rules depth | pending | — | — |
-| M10 Tactical character art pass | pending | — | — |
+| M6 District generation | **done** | pass | accepted |
+| M7 Breadth + ranged combat | **done** | pass | accepted |
+| M8 Map presentation + content packs | **done** | pass | accepted |
+| M9 Combat rules depth | **done** | pass | accepted |
+| M10 Initiative, reactions + conditions | pending | — | — |
+| M11 Line of sight, cover + friendly fire | pending | — | — |
+| M12 Smart tactical AI | pending | — | — |
+| M13 Strategic pressure + win/lose | pending | — | — |
+| M14 Equipment, inventory, loot + economy | pending | — | — |
+| M15 Progression: XP + levels | pending | — | — |
+| M16 Story, quests, dialogue + skill checks | pending | — | — |
+| M17 Bestiary + spell breadth | pending | — | — |
+| M18 Figurines, facing + combat animations | pending | — | — |
+| M19 Roster, injuries, rest + recovery | pending | — | — |
+| M20 QoL: audio, save slots, difficulty | pending | — | — |
+
+> Roadmap renumbered 2026-06-11: the old "M10 Tactical character art pass" is subsumed into **M18**. M9–M20 ordering rationale lives in `ROADMAP.md`.
 
 ---
 
@@ -85,27 +97,27 @@ Build progress for EMBERWATCH. Milestone definitions live in `ROADMAP.md`.
 
 ---
 
-## M6 — gate 1 done (2026-06-09)
+## M6 — done (2026-06-09; gate 2 accepted 2026-06-11)
 
 **Delivered:** Pure-core district model (`src/core/district/` — types, validator, procedural `generateDistrictFromBrief`, loader); `DistrictPackage` with separate world + interior graphs; reclamation (`siteControl`, `markSiteHeld`, `MarkSiteHeld` effect); shared pathfinding for held/safe travel (`pathfinding.ts`, `travelWithinDistrict`); campaign v3 serialize (`mapLayer`, `activeDistrictId`, `currentAreaSiteId`, `siteControl`); frozen `tests/contract/district.test.ts`. Renderer: generated Ashen Ward on world map; **Enter district** → `StrategicMapScreen` district layer (unified strategic map — not a separate tile-grid UI); auto-combat on hostile arrival; victory returns to district map with area held; return to world map only from entrance; combat scene `destroy()` on teardown; dev PROCEDURAL flags.
 
 **Gate 1:** `npm run test` (117 tests) — `district.test.ts`, `map-validator.test.ts`, `district-generate.test.ts`, `reclamation.test.ts`, `district-presence.test.ts`, `world-pathfinding.test.ts`, `site-kinds.test.ts`; frozen `pipeline.test.ts`, `transition.test.ts`, `narrator.test.ts` unchanged.
 
-**Gate 2 (pending):** generate/load district, enter district strategic map, clear encounters, see hostile → held on map, confirm tier gradient, label-only rename, overlay PROCEDURAL flags.
+**Gate 2:** accepted 2026-06-11 — playtested; district entry, reclamation, and tier gradient looked good.
 
 ---
 
-## M7 — gate 1 done (2026-06-10)
+## M7 — done (2026-06-10; gate 2 accepted 2026-06-11)
 
 **Delivered:** 4-hero party (archer Fighter, Rogue, Wizard, Cleric) via `m7-subset.json`; ranged `Strike`, `CastSpell` (Ray of Frost), `CastHeal` (2-action Heal); `Heal` effect + `Healed` event; combat inspector (`inspectTarget`); Skirmisher/Bruiser enemies; placeholder projectile VFX; frozen contract tests `ranged-strike`, `cast-spell`, `cast-heal`. Party/campaign serialize v2/v3 updated for 4 members.
 
 **Gate 1:** `npm run test` (126 tests) — M7 contract + unit tests; frozen `pipeline.test.ts`, `transition.test.ts`, `narrator.test.ts`, `district.test.ts` unchanged.
 
-**Gate 2 (pending):** create 4-hero party; bow at range; Ray of Frost; heal ally; hover inspector; projectiles on hit; overlay PROCEDURAL flags.
+**Gate 2:** accepted 2026-06-11 — playtested; 4-hero party, ranged/spell/heal actions, and hover inspector looked good.
 
 ---
 
-## M8 — gate 1 done (2026-06-11)
+## M8 — done (2026-06-11; gate 2 accepted 2026-06-11)
 
 **Delivered:** Content-pack architecture (`src/core/pack/` — `ContentPack` types, `validateContentPack`, battle-map validator/resolver, `buildPackEncounter`); blocked terrain in combat core (`MapGrid.blocked`, Step rejects blocked tiles, enemy AI avoids them, survives replay); `derivePartyBlueprints` spawn overrides; `WorldSite.levelId` for multi-level district interiors. Content layer (`src/content/`): authored **Emberwatch** default pack — 9-site frontier world, **The Drowned Quay** (harbor, 1 level), **The Bell Spire** (tower, 3 levels), **The Ember Vaults** (undercroft, 2 levels), 18 themed encounters on 12 authored battle maps over 4 tilesets, per-site ambience; minimal **Mirrormarsh** alt pack (fen world, 1 district, marsh tileset) proving the seam; 9 illustrated SVG maps under `public/art/` (parchment world maps, district plans, per-level tower/dungeon floors). Renderer: manifest merge with pack entries; `StrategicMapScreen` illustrated backgrounds + per-level floor plans with stairs-aware token travel; `CombatScene` themed battle-map tiles (extruded walls/props, recessed water/chasm, tileset scene background); camera sized per encounter; pack picker on the recruit screen (persisted); combat on hostile world sites with victory → Held. Old saves (generated Ashen Ward, M3 demo) still resolve via legacy fallback.
 
@@ -115,4 +127,20 @@ Build progress for EMBERWATCH. Milestone definitions live in `ROADMAP.md`.
 
 **Playtest fix (2026-06-11):** district sites were indistinguishable from battle sites on the world map (tester looked for districts at the Ashen Road / Cinder Market / Pilgrim's Rest — none of which are districts). District sites now render as larger gold ✦ markers with a DISTRICT caption; sidebar routes show `· District`; site status reads "District — can be entered" / "Safe haven" / "Point of interest" instead of a blanket Held/Hostile, and the red hostile marker ring is reserved for actual combat sites.
 
-**Gate 2 (pending):** illustrated world map on Enter World; enter Drowned Quay / Bell Spire (3 floor plans switch as you climb) / Ember Vaults; themed battle maps with walls that block movement; world-site fight on the Ashen Road flips it to Held; switch to The Mirrormarsh on the recruit screen and see a different game skin; overlay flags.
+**Gate 2:** accepted 2026-06-11 — playtested; illustrated world/district/battle maps, multi-level districts, world-site reclamation, and Mirrormarsh pack swap all looked good.
+
+---
+
+## M9 — done (2026-06-11; gate 2 accepted 2026-06-11)
+
+**Delivered:** Vendored SRD (`rules/srd/` — `saving-throws.md`, `resistance-weakness.md`, `spell-breathe-fire.md`, `cleric-divine-font.md`, `spell-slots.md`, `m9-subset.json`; all from Archives of Nethys, not memory). Pure-core combat depth: four-tier basic saves with natural 20/1 step shifts (`combat/save.ts`); weakness-then-resistance damage adjustment on every `Damage` effect (`combat/damage.ts`); Breathe Fire (2 actions, 3-tile quarter-circle cone, 2d6 fire, basic Reflex, RAW friendly fire — allies in the template save and take damage; `combat/cone.ts`, `CastConeSpell`); prepared spell slots (spell locked into slot; Heal is a rank-1 leveled spell; Cleric divine font = 4 Heal-only bonus slots; Wizard preps 2× Breathe Fire; **opt-in enforcement** — entities without a `spellSlots` pool cast unrestricted, keeping frozen M7 contracts green); `SpendSpellSlot` effect → `SpellSlotSpent` event; slot state persists across combat↔campaign transitions and party/campaign serialize; free re-preparation at safe havens via `PrepareSpellSlots` campaign effect (PROCEDURAL until M19 rest). Path-aware Step (`combat/path.ts` BFS): blocked terrain can't be crossed, enemies block routes, allies are pass-through, AP cost = route length. Content: enemy archetypes carry role-scaled save modifiers; ember mobs resist fire 3 / weak cold 2, drowned & marsh mobs the reverse (both packs). Renderer: Breathe Fire cone preview + tile-click casting, slot counts on HUD buttons and party lines (disabled at 0), hover inspector shows save % and resist/weak-adjusted damage bands, combat log prints save rolls vs DC with outcome tiers, adjustment breakdowns, and slot-spend lines.
+
+**Type-system note:** the frozen M1 pipeline test compiles an exhaustive switch over `Effect["kind"]`, so `Effect` stays frozen at its M1 kinds; the pipeline functions accept `AnyEffect` (= `Effect` + post-freeze kinds like `SpendSpellSlot`), and each new kind ships its own one-effect-one-event + replay contract test.
+
+**Gate 1:** `npm run test` (193 tests) — new `tests/contract/save-resolution.test.ts`, `resistance-weakness.test.ts`, `spell-slots.test.ts`, `path-aware-step.test.ts`, `tests/unit/cone-template.test.ts`; all frozen contract tests unchanged. `npm run build` clean.
+
+**Playtest fix (2026-06-11):** a selected cast mode could only be left by picking another spell, so the Wizard with Breathe Fire selected could no longer move (tile clicks cast). Added a **Move** mode button for every hero — never casts, shows the AP movement radius — and mode choice now persists only while valid for the active hero.
+
+**Known simplifications (flagged in overlay):** Breathe Fire's cone ignores walls (line of sight/effect is M11, `m9_cone_line_of_effect`); safe-haven slot recovery is the interim stand-in for M19 rest (`m9_slot_recovery`).
+
+**Gate 2:** accepted 2026-06-11 — playtested; saves, resistance/weakness, slot economy, and path-aware movement all looked good after the Move-mode fix.
