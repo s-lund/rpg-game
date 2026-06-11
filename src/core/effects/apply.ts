@@ -15,7 +15,7 @@ export interface ApplyResult {
 }
 
 function cloneEntity(entity: Entity): Entity {
-  return { ...entity, conditions: [...entity.conditions] };
+  return { ...entity, conditions: [...entity.conditions], knownSpells: [...entity.knownSpells] };
 }
 
 function cloneState(state: GameState): GameState {
@@ -73,6 +73,23 @@ function buildEvent(effect: Effect, state: GameState, ctx: ApplyContext): GameEv
       return {
         ...base,
         type: "DamageDealt",
+        payload,
+      };
+    }
+    case "Heal": {
+      const target = state.entities[effect.targetId]!;
+      const payload: Record<string, unknown> = {
+        target_id: effect.targetId,
+        amount: effect.amount,
+        hp_after: Math.min(target.maxHp, target.hp + effect.amount),
+        from_effect: effect.effectId,
+      };
+      if (effect.healResolution) {
+        payload.heal_resolution = effect.healResolution;
+      }
+      return {
+        ...base,
+        type: "Healed",
         payload,
       };
     }
@@ -150,6 +167,15 @@ function reduce(effect: Effect, draft: GameState): void {
     case "Damage": {
       const target = draft.entities[effect.targetId]!;
       target.hp = Math.max(0, target.hp - effect.amount);
+      break;
+    }
+    case "Heal": {
+      const target = draft.entities[effect.targetId]!;
+      target.hp = Math.min(target.maxHp, target.hp + effect.amount);
+      if (target.hp > 0) {
+        target.downed = false;
+        target.actionPoints = target.maxActionPoints;
+      }
       break;
     }
     case "ApplyCondition": {

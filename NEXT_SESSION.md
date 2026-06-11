@@ -21,10 +21,10 @@ Key architecture (do not regress):
 - Tactical maps: combat tile grids per area; no free-roam local exploration yet (later milestone)
 - Core owns graphs, campaign state, reclamation; renderers are read-only consumers
 
-Roadmap note: M8 = illustrated strategic maps + swappable content packs; M9 = tactical GLB art pass (former M8).
+Roadmap note: M8 = illustrated world/district/battle maps + content packs; M9 = saves, resistance, spell slots; M10 = tactical character GLB art pass.
 
 Explicitly out of scope for M6:
-- Illustrated map art (M8), tactical GLBs (M9), free-roam tile-grid exploration, enemy AI, M7 combat inspector
+- Illustrated map art (M8), combat rules depth (M9), tactical character GLBs (M10), free-roam tile-grid exploration, enemy AI, M7 combat inspector
 
 Rules: never weaken frozen contract tests; src/core stays pure; flag mocks in dev overlay.
 ```

@@ -85,6 +85,13 @@ function effectForKind(kind: Effect["kind"], state: GameState): Effect {
         effectId: "eff_down_test",
         entityId: goblin.id,
       };
+    case "Heal":
+      return {
+        kind: "Heal",
+        effectId: "eff_heal_test",
+        targetId: fighter.id,
+        amount: 4,
+      };
     case "CombatEnded":
       return {
         kind: "CombatEnded",

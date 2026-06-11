@@ -1,16 +1,17 @@
 import type { EntityId } from "../shared/ids";
+import type { SpellId } from "./characters/subset";
 
-export type ClassId = "fighter" | "rogue";
+export type ClassId = "fighter" | "rogue" | "wizard" | "cleric";
 
 export type Team = "party" | "enemy";
 
 export type ConditionId = "flat_footed";
 
-export type DamageType = "slashing" | "piercing";
+export type DamageType = "slashing" | "piercing" | "cold" | "positive";
 
 export type CombatOutcome = "victory" | "defeat";
 
-/** Roll breakdown attached to strike damage effects and DamageDealt events. */
+/** Roll breakdown attached to strike/spell damage effects and DamageDealt events. */
 export interface AttackResolution {
   hit: boolean;
   d20Natural: number;
@@ -24,6 +25,12 @@ export interface AttackResolution {
   sneakRolls?: number[];
 }
 
+export interface HealResolution {
+  spellLabel: string;
+  healRolls: number[];
+  flatBonus: number;
+}
+
 export interface Entity {
   id: EntityId;
   label: string;
@@ -35,7 +42,11 @@ export interface Entity {
   hp: number;
   ac: number;
   attackBonus: number;
+  spellAttackBonus: number;
   damage: { count: number; sides: number; modifier: number };
+  damageType: DamageType;
+  strikeRange: number;
+  knownSpells: SpellId[];
   conditions: ConditionId[];
   actionPoints: number;
   maxActionPoints: number;
@@ -81,7 +92,11 @@ export interface EntityBlueprint {
   currentHp?: number;
   ac: number;
   attackBonus?: number;
+  spellAttackBonus?: number;
   damage?: { count: number; sides: number; modifier: number };
+  damageType?: DamageType;
+  strikeRange?: number;
+  knownSpells?: SpellId[];
 }
 
 export interface InitialStateConfig {

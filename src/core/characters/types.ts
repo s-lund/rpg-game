@@ -12,7 +12,7 @@ export interface CharacterDraft {
 }
 
 export type PartyDraft = {
-  members: [CharacterDraft, CharacterDraft];
+  members: [CharacterDraft, CharacterDraft, CharacterDraft, CharacterDraft];
 };
 
 export type ValidationResult =

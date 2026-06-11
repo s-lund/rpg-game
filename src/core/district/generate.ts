@@ -65,25 +65,33 @@ function makeRoomGrid(
 }
 
 function enemiesForTier(tier: number, areaSlug: string, rng: () => number): EntityBlueprint[] {
+  const useSkirmisherLayout = tier === 1 && areaSlug.includes("gate");
   const count = tier >= 3 ? 3 : 2;
-  const baseHp = 8 + tier * 2;
-  const ac = 14 + tier;
-  const attackBonus = 4 + tier;
   const enemies: EntityBlueprint[] = [];
 
   for (let i = 0; i < count; i++) {
+    const isBruiser = tier >= 2 && i === count - 1;
+    const isSkirmisher = useSkirmisherLayout || (tier === 1 && i === 0);
+
+    const baseHp = isBruiser ? 14 + tier * 2 : isSkirmisher ? 8 + tier : 8 + tier * 2;
+    const ac = isBruiser ? 15 + tier : isSkirmisher ? 13 + tier : 14 + tier;
+    const attackBonus = isBruiser ? 5 + tier : isSkirmisher ? 4 + tier : 4 + tier;
+    const label = isBruiser ? "Bruiser" : isSkirmisher ? "Skirmisher" : tier >= 3 ? "Elite Raider" : "Patrol";
+
     enemies.push({
       id: `ent_${areaSlug}_${i + 1}` as EntityBlueprint["id"],
-      label: tier >= 3 ? "Elite Raider" : tier >= 2 ? "Patrol" : "Scout",
-      x: 5 + i,
-      y: 4 + (i % 2),
+      label,
+      x: 6 + i,
+      y: isSkirmisher ? 3 : 4 + (i % 2),
       maxHp: baseHp + Math.floor(rng() * 2),
       ac,
       attackBonus,
+      strikeRange: isSkirmisher ? 4 : 1,
+      damageType: isSkirmisher ? "piercing" : "slashing",
       damage: {
         count: 1,
-        sides: tier >= 3 ? 8 : 6,
-        modifier: tier >= 3 ? 2 : tier >= 2 ? 1 : 0,
+        sides: isBruiser ? 8 : 6,
+        modifier: isBruiser ? 2 : tier >= 2 ? 1 : 0,
       },
     });
   }

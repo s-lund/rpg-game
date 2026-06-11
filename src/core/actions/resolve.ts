@@ -1,10 +1,13 @@
 import type { EntityId } from "../../shared/ids";
 import type { Action } from "./types";
 import type { Effect } from "../effects/types";
-import type { GameState } from "../types";
+import type { DamageType, GameState } from "../types";
 import type { Rng } from "../rng";
+import { attackHits } from "../combat/attack";
 import { effectiveAc, isFlanking } from "../combat/flanking";
-import { isAdjacent, isInBounds, isTileOccupied, manhattanDistance } from "../combat/grid";
+import { canTargetAlly, canTargetEnemy, isInRange } from "../combat/range";
+import { isInBounds, isTileOccupied, manhattanDistance } from "../combat/grid";
+import { damageSpellDef, healSpellDef } from "../characters/subset";
 
 export interface ResolveResult {
   effects: Effect[];
@@ -34,6 +37,10 @@ export function resolveAction(action: Action, state: GameState, rng: Rng): Resol
       return resolveStep(action, state);
     case "Strike":
       return resolveStrike(action, state, rng);
+    case "CastSpell":
+      return resolveCastSpell(action, state, rng);
+    case "CastHeal":
+      return resolveCastHeal(action, state, rng);
     case "EndTurn":
       return resolveEndTurn(action, state);
   }
@@ -103,7 +110,10 @@ function resolveStrike(
   if (actor.actionPoints < 1) {
     return { effects: [] };
   }
-  if (!isAdjacent(actor.x, actor.y, target.x, target.y)) {
+  if (actor.strikeRange < 1) {
+    return { effects: [] };
+  }
+  if (!canTargetEnemy(state, action.actorId, action.targetId, actor.strikeRange)) {
     return { effects: [] };
   }
 
@@ -116,7 +126,8 @@ function resolveStrike(
     },
   ];
 
-  const flanking = isFlanking(state, action.actorId, action.targetId);
+  const adjacent = isInRange(actor, target.x, target.y, 1);
+  const flanking = adjacent && isFlanking(state, action.actorId, action.targetId);
   if (flanking && !target.conditions.includes("flat_footed")) {
     effects.push({
       kind: "ApplyCondition",
@@ -145,7 +156,8 @@ function resolveStrike(
   );
 
   const wLabel = weaponLabel(actor.damage.count, actor.damage.sides, actor.damage.modifier);
-  const hit = attackTotal >= targetAc;
+  const hit = attackHits(d20Natural, attackTotal, targetAc);
+  const damageType = actor.damageType;
 
   if (hit) {
     const damageRolls = rollDice(rng, actor.damage.count, actor.damage.sides);
@@ -161,7 +173,7 @@ function resolveStrike(
       effectId: `${action.actionId}_dmg`,
       targetId: action.targetId,
       amount: damage,
-      damageType: "slashing",
+      damageType,
       attackResolution: {
         hit: true,
         d20Natural,
@@ -190,7 +202,7 @@ function resolveStrike(
       effectId: `${action.actionId}_miss`,
       targetId: action.targetId,
       amount: 0,
-      damageType: "slashing",
+      damageType,
       attackResolution: {
         hit: false,
         d20Natural,
@@ -204,6 +216,167 @@ function resolveStrike(
   }
 
   return { effects };
+}
+
+function resolveCastSpell(
+  action: Extract<Action, { kind: "CastSpell" }>,
+  state: GameState,
+  rng: Rng,
+): ResolveResult {
+  const actor = state.entities[action.actorId];
+  const target = state.entities[action.targetId];
+  if (!actor || !target || actor.downed || target.downed) {
+    return { effects: [] };
+  }
+  if (state.combat.activeActorId !== action.actorId) {
+    return { effects: [] };
+  }
+  if (state.combat.phase !== "active") {
+    return { effects: [] };
+  }
+  if (!actor.knownSpells.includes(action.spellId)) {
+    return { effects: [] };
+  }
+
+  if (action.spellId !== "ray_of_frost") {
+    return { effects: [] };
+  }
+  const spell = damageSpellDef(action.spellId);
+  if (actor.actionPoints < spell.actionCost) {
+    return { effects: [] };
+  }
+  if (!canTargetEnemy(state, action.actorId, action.targetId, spell.rangeTiles)) {
+    return { effects: [] };
+  }
+
+  const effects: Effect[] = [
+    {
+      kind: "SpendActionPoints",
+      effectId: `${action.actionId}_ap`,
+      entityId: action.actorId,
+      amount: spell.actionCost,
+    },
+  ];
+
+  const d20Natural = rng.d20();
+  const attackTotal = d20Natural + actor.spellAttackBonus;
+  const targetAc = effectiveAc(state, action.targetId);
+  const wLabel = weaponLabel(spell.damage.count, spell.damage.sides, 0);
+  const hit = attackHits(d20Natural, attackTotal, targetAc);
+  const damageType = spell.damageType as DamageType;
+
+  if (hit) {
+    const damageRolls = rollDice(rng, spell.damage.count, spell.damage.sides);
+    const damage = sumDice(damageRolls, 0);
+
+    effects.push({
+      kind: "Damage",
+      effectId: `${action.actionId}_dmg`,
+      targetId: action.targetId,
+      amount: damage,
+      damageType,
+      attackResolution: {
+        hit: true,
+        d20Natural,
+        attackBonus: actor.spellAttackBonus,
+        attackTotal,
+        targetAc,
+        flanking: false,
+        weaponLabel: `${spell.label}: ${wLabel}`,
+        damageRolls,
+        damageModifier: 0,
+      },
+    });
+
+    const hpAfter = Math.max(0, target.hp - damage);
+    if (hpAfter === 0) {
+      effects.push({
+        kind: "EntityDowned",
+        effectId: `${action.actionId}_down`,
+        entityId: action.targetId,
+      });
+    }
+  } else {
+    effects.push({
+      kind: "Damage",
+      effectId: `${action.actionId}_miss`,
+      targetId: action.targetId,
+      amount: 0,
+      damageType,
+      attackResolution: {
+        hit: false,
+        d20Natural,
+        attackBonus: actor.spellAttackBonus,
+        attackTotal,
+        targetAc,
+        flanking: false,
+        weaponLabel: `${spell.label}: ${wLabel}`,
+      },
+    });
+  }
+
+  return { effects };
+}
+
+function resolveCastHeal(
+  action: Extract<Action, { kind: "CastHeal" }>,
+  state: GameState,
+  rng: Rng,
+): ResolveResult {
+  const actor = state.entities[action.actorId];
+  const target = state.entities[action.targetId];
+  if (!actor || !target || actor.downed) {
+    return { effects: [] };
+  }
+  if (state.combat.activeActorId !== action.actorId) {
+    return { effects: [] };
+  }
+  if (state.combat.phase !== "active") {
+    return { effects: [] };
+  }
+  if (!actor.knownSpells.includes(action.spellId)) {
+    return { effects: [] };
+  }
+
+  if (action.spellId !== "heal_ranged") {
+    return { effects: [] };
+  }
+  const spell = healSpellDef(action.spellId);
+  if (actor.actionPoints < spell.actionCost) {
+    return { effects: [] };
+  }
+  if (!canTargetAlly(state, action.actorId, action.targetId, spell.rangeTiles)) {
+    return { effects: [] };
+  }
+  if (!target.downed && target.hp >= target.maxHp) {
+    return { effects: [] };
+  }
+
+  const healRolls = rollDice(rng, spell.heal.count, spell.heal.sides);
+  const rolled = sumDice(healRolls, spell.heal.flatBonus);
+  const amount = Math.min(rolled, target.maxHp - target.hp);
+
+  return {
+    effects: [
+      {
+        kind: "SpendActionPoints",
+        effectId: `${action.actionId}_ap`,
+        entityId: action.actorId,
+        amount: spell.actionCost,
+      },
+      {
+        kind: "Heal",
+        effectId: `${action.actionId}_heal`,
+        targetId: action.targetId,
+        amount,
+        healResolution: {
+          spellLabel: spell.label,
+          healRolls,
+          flatBonus: spell.heal.flatBonus,
+        },
+      },
+    ],
+  };
 }
 
 function nextLivingActor(state: GameState, currentId: EntityId): EntityId | null {

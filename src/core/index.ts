@@ -2,7 +2,7 @@
 
 export type { AreaId, BeatId, DistrictId, ExitId, SiteId } from "../shared/ids";
 
-export const CORE_VERSION = "0.1.0-m6";
+export const CORE_VERSION = "0.1.0-m7";
 
 export type { Action } from "./actions/types";
 export { resolveAction, postActionEffects } from "./actions/resolve";
@@ -105,9 +105,14 @@ export type { CharacterDraft, PartyDraft, ValidationResult } from "./characters/
 export type { AbilityId, ClassId as CharacterClassId, SkillId } from "./characters/subset";
 export {
   ABILITY_IDS,
+  M7_SUBSET,
   M2_SUBSET,
   fighterRules,
   rogueRules,
+  wizardRules,
+  clericRules,
+  spellDef,
+  type SpellId,
 } from "./characters/subset";
 export {
   abilityModifier,
@@ -121,6 +126,10 @@ export { serializeParty, deserializeParty } from "./characters/serialize";
 
 export { isFlanking, effectiveAc } from "./combat/flanking";
 export { manhattanDistance, isAdjacent, isInBounds, isTileOccupied } from "./combat/grid";
+export { tileDistance, isInRange, canTargetEnemy, canTargetAlly } from "./combat/range";
+export { inspectTarget, type TargetInspection, type InspectActionKind } from "./combat/inspect";
+export { attackHits, estimateHitPercent, damageBand } from "./combat/attack";
+export { chooseEnemyAction } from "./ai/enemy-turn";
 
 export type { Rng } from "./rng";
 export { createDefaultRng, createSeededRng } from "./rng";
@@ -134,4 +143,6 @@ export type {
   ClassId,
   InitialStateConfig,
   AttackResolution,
+  HealResolution,
+  DamageType,
 } from "./types";

@@ -101,7 +101,14 @@ function effectFromEvent(event: GameEvent): Effect | null {
         effectId: fromEffect,
         targetId: event.payload.target_id as EntityId,
         amount: event.payload.amount as number,
-        damageType: event.payload.damage_type as "slashing" | "piercing",
+        damageType: event.payload.damage_type as import("./types").DamageType,
+      };
+    case "Healed":
+      return {
+        kind: "Heal",
+        effectId: fromEffect,
+        targetId: event.payload.target_id as EntityId,
+        amount: event.payload.amount as number,
       };
     case "ConditionApplied":
       return {

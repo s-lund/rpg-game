@@ -1,4 +1,4 @@
-import type { AttackResolution, GameEvent } from "../types";
+import type { AttackResolution, GameEvent, HealResolution } from "../types";
 import type { NarrationContext } from "./types";
 
 function label(ctx: NarrationContext, id: string): string {
@@ -45,6 +45,19 @@ function formatAttackResolution(event: GameEvent, ctx: NarrationContext): string
   return lines;
 }
 
+function formatHealResolution(event: GameEvent, ctx: NarrationContext): string[] {
+  const res = event.payload.heal_resolution as HealResolution;
+  const actor = label(ctx, event.actorId);
+  const target = label(ctx, String(event.payload.target_id));
+  const amount = event.payload.amount as number;
+  const hpAfter = event.payload.hp_after as number;
+  const rolled = formatDiceRolls(res.healRolls, res.flatBonus);
+  return [
+    `${actor} casts ${res.spellLabel} on ${target}: ${rolled}`,
+    `  ${target} heals ${amount} HP (${hpAfter} HP now)`,
+  ];
+}
+
 export function formatCombatLogBatch(events: GameEvent[], ctx: NarrationContext): string[] {
   const lines: string[] = [];
 
@@ -81,6 +94,12 @@ export function formatCombatLogBatch(events: GameEvent[], ctx: NarrationContext)
           const dtype = event.payload.damage_type as string;
           const hpAfter = event.payload.hp_after as number;
           lines.push(`${target} takes ${amount} ${dtype} damage (${hpAfter} HP left)`);
+        }
+        break;
+      }
+      case "Healed": {
+        if (event.payload.heal_resolution) {
+          lines.push(...formatHealResolution(event, ctx));
         }
         break;
       }

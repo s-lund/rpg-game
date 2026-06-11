@@ -41,6 +41,6 @@ describe("party round-trip", () => {
       expect(entity.team).toBe("party");
     }
 
-    expect(Object.keys(state.entities)).toHaveLength(4);
+    expect(Object.keys(state.entities)).toHaveLength(6);
   });
 });

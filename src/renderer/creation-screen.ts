@@ -50,6 +50,8 @@ export class CreationScreen {
     this.party = createDefaultParty();
     this.party.members[0].name = "Aldric";
     this.party.members[1].name = "Sera";
+    this.party.members[2].name = "Mira";
+    this.party.members[3].name = "Oren";
 
     this.root = document.createElement("div");
     this.root.id = SCREEN_ID;
@@ -75,16 +77,16 @@ export class CreationScreen {
 
     const subtitle = document.createElement("p");
     subtitle.textContent =
-      "Build a Fighter and a Rogue (level 1). Abilities use a point pool from base 10. Ancestry/background are M2 defaults — see dev overlay.";
+      "Build a 4-hero party (archer Fighter, Rogue, Wizard, Cleric) at level 1. Abilities use a point pool from base 10. Ancestry/background are fixed defaults — see dev overlay.";
     subtitle.style.cssText = "margin: 0 0 20px; max-width: 720px; color: #a8a4a0; text-align: center;";
     this.root.appendChild(subtitle);
 
     const columns = document.createElement("div");
     columns.style.cssText = [
       "display: grid",
-      "grid-template-columns: repeat(auto-fit, minmax(300px, 1fr))",
+      "grid-template-columns: repeat(auto-fit, minmax(260px, 1fr))",
       "gap: 16px",
-      "width: min(960px, 100%)",
+      "width: min(1200px, 100%)",
     ].join(";");
 
     for (const slot of M2_SUBSET.partySlots) {

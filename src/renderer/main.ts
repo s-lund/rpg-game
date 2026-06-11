@@ -9,7 +9,9 @@ import {
   formatCombatLogBatch,
   formatSiteAmbience,
   generateDistrictFromBrief,
-  isAdjacent,
+  chooseEnemyAction,
+  inspectTarget,
+  spellDef,
   markSiteHeld,
   shouldFightOnArrival,
   enterDistrict,
@@ -36,7 +38,12 @@ import { loadManifest, summarizeManifest } from "./assets/load-manifest";
 import { ScenePresence } from "./scene-presence";
 import { CombatSession } from "./combat-session";
 import { CombatScene } from "./combat-scene";
-import { CombatHud } from "./combat-hud";
+import {
+  actionModeToInspectKind,
+  CombatHud,
+  inspectModeForActor,
+  type CombatActionMode,
+} from "./combat-hud";
 import { CreationScreen } from "./creation-screen";
 import { WorldMapSession } from "./world-map-session";
 import { GameOverScreen } from "./game-over-screen";
@@ -61,6 +68,8 @@ const ISO_YAW = Math.PI / 4;
 const ISO_PITCH = Math.atan(1 / Math.sqrt(2));
 const GRID_SIZE = 12;
 const TILE_SIZE = 1;
+const COMBAT_END_LINGER_MS = 2000;
+const ENEMY_ACTION_DELAY_MS = 650;
 
 function createIsometricCamera(width: number, height: number): THREE.OrthographicCamera {
   const aspect = width / height;
@@ -290,6 +299,36 @@ function buildAcceptanceItems() {
       proof: "test" as const,
       how: "npm run test — tests/contract/pipeline.test.ts",
     },
+    {
+      id: "m7_ranged_party",
+      label: "4-hero ranged party (bow, rogue, wizard, cleric)",
+      proof: "visual" as const,
+      how: "creation screen shows four heroes; archer shoots at range; wizard casts Ray of Frost; cleric heals ally",
+    },
+    {
+      id: "m7_combat_inspector",
+      label: "Hover enemy for combat breakdown",
+      proof: "visual" as const,
+      how: "on your turn, hover an enemy — top-right panel shows HP, hit%, damage band",
+    },
+    {
+      id: "m7_projectiles",
+      label: "Placeholder projectiles on hits",
+      proof: "visual" as const,
+      how: "land a bow hit, spell hit, or heal — short VFX travels source to target",
+    },
+    {
+      id: "m7_contract_tests",
+      label: "M7 ranged combat contracts",
+      proof: "test" as const,
+      how: "npm run test — ranged-strike, cast-spell, cast-heal contract tests",
+    },
+    {
+      id: "m7_procedural_flags",
+      label: "M7 placeholders flagged in overlay",
+      proof: "overlay" as const,
+      how: "F3/~ lists combat_projectiles, combat_inspector, m7_spell_rules as PROCEDURAL",
+    },
   ];
 }
 
@@ -303,7 +342,7 @@ function init(): void {
   const manifestSummary = summarizeManifest(manifest);
   const presence = new ScenePresence();
 
-  presence.registerProcedural("tile_grid", "checkerboard tiles — tile_floor GLB deferred to M9");
+  presence.registerProcedural("tile_grid", "checkerboard tiles — battle-map tile art deferred to M8");
   presence.registerProcedural("fighter_token", "blue box mesh — fighter_token GLB placeholder");
   presence.registerProcedural("rogue_token", "blue box mesh — rogue_token not in manifest yet");
   presence.registerProcedural("goblin_token", "green box mesh — goblin_token not in manifest yet");
@@ -391,6 +430,26 @@ function init(): void {
     "location_map_screen",
     "M6 area tile-grid preview between overworld and combat — not free-roam yet",
   );
+  presence.registerProcedural(
+    "wizard_token",
+    "M7 blue box mesh — wizard_token GLB placeholder",
+  );
+  presence.registerProcedural(
+    "cleric_token",
+    "M7 blue box mesh — cleric_token GLB placeholder",
+  );
+  presence.registerProcedural(
+    "combat_projectiles",
+    "M7 arrow/spell/heal placeholder meshes — see ASSETS_NEEDED.md",
+  );
+  presence.registerProcedural(
+    "combat_inspector",
+    "M7 hover target breakdown — pure-core math, DOM overlay",
+  );
+  presence.registerProcedural(
+    "m7_spell_rules",
+    "M7 Ray of Frost + Heal from vendored SRD subset — no spell slots yet",
+  );
 
   const devOverlay = new DevOverlay(import.meta.env.DEV);
   const acceptance = buildAcceptanceItems();
@@ -425,6 +484,8 @@ function init(): void {
   let combatActive = false;
   let worldMapSession: WorldMapSession | null = null;
   let combatEndedHandled = false;
+  let combatEndTimer: number | null = null;
+  let enemyTurnTimer: number | null = null;
   const worldMapScreen = new WorldMapScreen(document.body);
   const districtMapScreen = new StrategicMapScreen(document.body, "district");
   const narratorPanel = new NarratorPanel(document.body);
@@ -523,6 +584,17 @@ function init(): void {
     devOverlay.setState({ summary: manifestSummary, presence, acceptance: buildAcceptanceItems() });
   }
 
+  function clearCombatTimers(): void {
+    if (combatEndTimer !== null) {
+      clearTimeout(combatEndTimer);
+      combatEndTimer = null;
+    }
+    if (enemyTurnTimer !== null) {
+      clearTimeout(enemyTurnTimer);
+      enemyTurnTimer = null;
+    }
+  }
+
   function endTurn(): void {
     if (!combatSession) return;
     const state = combatSession.getState();
@@ -537,8 +609,113 @@ function init(): void {
     if (acted) refreshHudAndOverlay();
   }
 
+  function runEnemyTurn(): void {
+    if (!combatSession) return;
+    const state = combatSession.getState();
+    if (state.combat.phase !== "active") return;
+
+    const activeId = state.combat.activeActorId;
+    if (!activeId) return;
+    const actor = state.entities[activeId];
+    if (!actor || actor.team !== "enemy") return;
+
+    const action = chooseEnemyAction(state, activeId);
+    if (!action) {
+      endTurn();
+      return;
+    }
+
+    if (action.kind === "EndTurn") {
+      endTurn();
+      return;
+    }
+
+    const acted = combatSession.dispatch(action);
+    if (!acted) {
+      endTurn();
+      return;
+    }
+
+    enemyTurnTimer = window.setTimeout(() => {
+      enemyTurnTimer = null;
+      const next = combatSession?.getState();
+      if (!next || next.combat.phase !== "active") return;
+      const stillActive = next.combat.activeActorId;
+      const stillActor = stillActive ? next.entities[stillActive] : null;
+      if (stillActor?.team === "enemy" && stillActor.actionPoints > 0) {
+        runEnemyTurn();
+      } else if (stillActor?.team === "enemy") {
+        endTurn();
+      }
+    }, ENEMY_ACTION_DELAY_MS);
+  }
+
+  function scheduleEnemyTurn(): void {
+    enemyTurnTimer = window.setTimeout(() => {
+      enemyTurnTimer = null;
+      runEnemyTurn();
+    }, ENEMY_ACTION_DELAY_MS);
+  }
+
+  function updateRangeHighlight(): void {
+    if (!combatSession || !combatScene) return;
+    const state = combatSession.getState();
+    const activeId = state.combat.activeActorId;
+    if (!activeId) {
+      combatScene.setRangeHighlight(null, 0);
+      return;
+    }
+    const actor = state.entities[activeId];
+    if (!actor || actor.team !== "party") {
+      combatScene.setRangeHighlight(null, 0);
+      return;
+    }
+    const mode = combatHud?.getActionMode() ?? "strike";
+    if (mode === "cast_spell") {
+      combatScene.setRangeHighlight(activeId, spellDef("ray_of_frost").rangeTiles);
+    } else if (mode === "cast_heal") {
+      combatScene.setRangeHighlight(activeId, spellDef("heal_ranged").rangeTiles);
+    } else {
+      combatScene.setRangeHighlight(activeId, actor.strikeRange);
+    }
+  }
+
+  function dispatchCombatAction(
+    actorId: EntityId,
+    targetId: EntityId,
+    mode: CombatActionMode,
+  ): boolean {
+    if (!combatSession) return false;
+    const actionId = `act_${mode}_${Date.now()}`;
+    if (mode === "cast_spell") {
+      return combatSession.dispatch({
+        kind: "CastSpell",
+        actionId,
+        actorId,
+        spellId: "ray_of_frost",
+        targetId,
+      });
+    }
+    if (mode === "cast_heal") {
+      return combatSession.dispatch({
+        kind: "CastHeal",
+        actionId,
+        actorId,
+        spellId: "heal_ranged",
+        targetId,
+      });
+    }
+    return combatSession.dispatch({
+      kind: "Strike",
+      actionId,
+      actorId,
+      targetId,
+    });
+  }
+
   function handlePointerClick(event: MouseEvent): void {
     if (!combatActive || !combatSession || !combatScene) return;
+    if (combatSession.getState().combat.phase !== "active") return;
 
     const rect = renderer.domElement.getBoundingClientRect();
     pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
@@ -552,9 +729,19 @@ function init(): void {
 
     if (pick.kind === "entity") {
       const entity = state.entities[pick.entityId as EntityId];
-      if (!entity || entity.downed) return;
+      if (!entity) return;
+
+      const mode = combatHud?.getActionMode() ?? "strike";
+      if (entity.downed && mode !== "cast_heal") return;
 
       if (entity.team === "party") {
+        const selectedId = combatScene.getSelectedEntity();
+        if (mode === "cast_heal" && selectedId === activeId && activeId) {
+          const acted = dispatchCombatAction(activeId, pick.entityId as EntityId, "cast_heal");
+          if (acted) refreshHudAndOverlay();
+          return;
+        }
+        if (entity.downed) return;
         combatScene.setSelectedEntity(pick.entityId);
         return;
       }
@@ -564,14 +751,10 @@ function init(): void {
 
       const actor = state.entities[selectedId as EntityId];
       if (!actor || actor.team !== "party") return;
-      if (!isAdjacent(actor.x, actor.y, entity.x, entity.y)) return;
 
-      const acted = combatSession.dispatch({
-        kind: "Strike",
-        actionId: `act_strike_${Date.now()}`,
-        actorId: selectedId as typeof activeId & string,
-        targetId: pick.entityId as typeof activeId & string,
-      });
+      if (mode === "cast_heal") return;
+
+      const acted = dispatchCombatAction(selectedId as EntityId, pick.entityId as EntityId, mode);
       if (acted) refreshHudAndOverlay();
       return;
     }
@@ -589,7 +772,62 @@ function init(): void {
     if (acted) refreshHudAndOverlay();
   }
 
+  function handlePointerMove(event: MouseEvent): void {
+    if (!combatActive || !combatSession || !combatScene || !combatHud) return;
+
+    const state = combatSession.getState();
+    const activeId = state.combat.activeActorId;
+    if (!activeId || state.combat.phase !== "active") {
+      combatHud.hideInspector();
+      return;
+    }
+
+    const rect = renderer.domElement.getBoundingClientRect();
+    pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    const pick = combatScene.pick(camera, pointer);
+    if (!pick || pick.kind !== "entity") {
+      combatHud.hideInspector();
+      return;
+    }
+
+    const entity = state.entities[pick.entityId as EntityId];
+    const actor = state.entities[activeId];
+    if (!entity || !actor || actor.team !== "party") {
+      combatHud.hideInspector();
+      return;
+    }
+
+    const mode = inspectModeForActor(actor.classId, combatHud.getActionMode());
+    if (mode !== "cast_heal" && entity.downed) {
+      combatHud.hideInspector();
+      return;
+    }
+
+    if (mode === "cast_heal") {
+      if (entity.team !== "party") {
+        combatHud.hideInspector();
+        return;
+      }
+    } else if (entity.team !== "enemy") {
+      combatHud.hideInspector();
+      return;
+    }
+
+    const inspectKind = actionModeToInspectKind(mode);
+    const spellId =
+      mode === "cast_spell" ? "ray_of_frost" : mode === "cast_heal" ? "heal_ranged" : undefined;
+    const info = inspectTarget(state, activeId, pick.entityId as EntityId, inspectKind, spellId);
+    if (!info) {
+      combatHud.hideInspector();
+      return;
+    }
+    combatHud.showInspector(entity.label, info, event.clientX, event.clientY);
+  }
+
   renderer.domElement.addEventListener("click", handlePointerClick);
+  renderer.domElement.addEventListener("mousemove", handlePointerMove);
+  renderer.domElement.addEventListener("mouseleave", () => combatHud?.hideInspector());
 
   window.addEventListener("keydown", (event) => {
     if (event.key === "e" || event.key === "E") {
@@ -607,16 +845,22 @@ function init(): void {
   window.addEventListener("resize", resize);
   resize();
 
-  function animate(): void {
+  let lastFrameMs = performance.now();
+
+  function animate(now: number): void {
     requestAnimationFrame(animate);
+    const deltaMs = now - lastFrameMs;
+    lastFrameMs = now;
     if (combatActive) {
+      combatScene?.tick(deltaMs);
       renderer.render(scene, camera);
     }
   }
 
-  animate();
+  animate(performance.now());
 
   function teardownCombat(): void {
+    clearCombatTimers();
     combatActive = false;
     combatEndedHandled = false;
     renderer.domElement.style.display = "none";
@@ -641,16 +885,22 @@ function init(): void {
     combatHud = new CombatHud(document.body);
     combatHud.show();
     combatHud.setOnEndTurn(endTurn);
+    combatHud.setOnActionModeChange(() => {
+      updateRangeHighlight();
+      refreshHudAndOverlay();
+    });
 
     combatScene.buildTiles(scene);
     combatScene.buildEntityMeshes(scene, combatSession.getState());
     combatScene.bootstrapFromState(combatSession.getState());
     combatHud.update(combatSession.getState());
+    updateRangeHighlight();
     combatActive = true;
     resize();
 
     combatSession.subscribe((events) => {
       combatScene!.onEvent(events);
+      updateRangeHighlight();
       refreshHudAndOverlay();
       combatLogPanel.appendLines(
         formatCombatLogBatch(events, buildCombatNarrationContext(combatSession!.getState())),
@@ -659,9 +909,13 @@ function init(): void {
       const combatEnded = events.find((e) => e.type === "CombatEnded");
       if (combatEnded && !combatEndedHandled) {
         combatEndedHandled = true;
-        handleCombatEnded(
-          combatEnded.payload.outcome === "victory" ? "victory" : "defeat",
-        );
+        combatScene!.setRangeHighlight(null, 0);
+        combatHud!.hideInspector();
+        const outcome = combatEnded.payload.outcome === "victory" ? "victory" : "defeat";
+        combatEndTimer = window.setTimeout(() => {
+          combatEndTimer = null;
+          handleCombatEnded(outcome);
+        }, COMBAT_END_LINGER_MS);
         return;
       }
 
@@ -671,8 +925,9 @@ function init(): void {
         const actor = combatSession!.getState().entities[actorId];
         if (actor?.team === "party") {
           combatScene!.setSelectedEntity(actorId);
+          updateRangeHighlight();
         } else if (actor?.team === "enemy") {
-          window.setTimeout(() => endTurn(), 500);
+          scheduleEnemyTurn();
         }
       }
     });
@@ -682,6 +937,8 @@ function init(): void {
       const actor = combatSession.getState().entities[active];
       if (actor?.team === "party") {
         combatScene.setSelectedEntity(active);
+      } else if (actor?.team === "enemy") {
+        scheduleEnemyTurn();
       }
     }
   }

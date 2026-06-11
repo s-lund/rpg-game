@@ -2,8 +2,8 @@
 
 Build progress for EMBERWATCH. Milestone definitions live in `ROADMAP.md`.
 
-**Current milestone:** M6 (gate 2 — human acceptance pending)  
-**Last updated:** 2026-06-09 — M6 gate 1 complete
+**Current milestone:** M7 (gate 2 — human acceptance pending)  
+**Last updated:** 2026-06-10 — M7 gate 1 complete
 
 ---
 
@@ -18,9 +18,10 @@ Build progress for EMBERWATCH. Milestone definitions live in `ROADMAP.md`.
 | M4 World ↔ combat transition | **done** | pass | accepted |
 | M5 Storytelling | **done** | pass | accepted |
 | M6 District generation | **gate 1 done** | pass | pending |
-| M7 Breadth + melee healer | pending | — | — |
-| M8 Strategic maps + content packs | pending | — | — |
-| M9 Tactical art pass | pending | — | — |
+| M7 Breadth + ranged combat | **gate 1 done** | pass | pending |
+| M8 Map presentation + content packs | pending | — | — |
+| M9 Combat rules depth | pending | — | — |
+| M10 Tactical character art pass | pending | — | — |
 
 ---
 
@@ -91,3 +92,13 @@ Build progress for EMBERWATCH. Milestone definitions live in `ROADMAP.md`.
 **Gate 1:** `npm run test` (117 tests) — `district.test.ts`, `map-validator.test.ts`, `district-generate.test.ts`, `reclamation.test.ts`, `district-presence.test.ts`, `world-pathfinding.test.ts`, `site-kinds.test.ts`; frozen `pipeline.test.ts`, `transition.test.ts`, `narrator.test.ts` unchanged.
 
 **Gate 2 (pending):** generate/load district, enter district strategic map, clear encounters, see hostile → held on map, confirm tier gradient, label-only rename, overlay PROCEDURAL flags.
+
+---
+
+## M7 — gate 1 done (2026-06-10)
+
+**Delivered:** 4-hero party (archer Fighter, Rogue, Wizard, Cleric) via `m7-subset.json`; ranged `Strike`, `CastSpell` (Ray of Frost), `CastHeal` (2-action Heal); `Heal` effect + `Healed` event; combat inspector (`inspectTarget`); Skirmisher/Bruiser enemies; placeholder projectile VFX; frozen contract tests `ranged-strike`, `cast-spell`, `cast-heal`. Party/campaign serialize v2/v3 updated for 4 members.
+
+**Gate 1:** `npm run test` (126 tests) — M7 contract + unit tests; frozen `pipeline.test.ts`, `transition.test.ts`, `narrator.test.ts`, `district.test.ts` unchanged.
+
+**Gate 2 (pending):** create 4-hero party; bow at range; Ray of Frost; heal ally; hover inspector; projectiles on hit; overlay PROCEDURAL flags.

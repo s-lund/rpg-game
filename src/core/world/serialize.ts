@@ -1,6 +1,6 @@
 import type { CampaignState } from "./types";
 import { deriveEntityBlueprint } from "../characters/derive";
-import { M2_SUBSET } from "../characters/subset";
+import { M7_SUBSET } from "../characters/subset";
 import { validateParty } from "../characters/validate";
 import type { CharacterDraft, PartyDraft } from "../characters/types";
 import type { DistrictId, SiteId } from "../../shared/ids";
@@ -67,8 +67,8 @@ export function deserializeCampaign(json: string): CampaignState {
   if (!parsed.graphId || !parsed.currentSiteId) {
     throw new Error("campaign missing graphId or currentSiteId");
   }
-  if (!parsed.party || !Array.isArray(parsed.party.members) || parsed.party.members.length !== 2) {
-    throw new Error("campaign party must contain exactly 2 members");
+  if (!parsed.party || !Array.isArray(parsed.party.members) || parsed.party.members.length !== 4) {
+    throw new Error("campaign party must contain exactly 4 members");
   }
 
   const partyWithHp = ensurePartyHpFromSave(parsed.party);
@@ -103,10 +103,10 @@ function ensurePartyHpFromSave(party: PartyDraft): PartyDraft {
     if (typeof draft.currentHp === "number") {
       return draft as CharacterDraft;
     }
-    const slot = M2_SUBSET.partySlots.find((s) => s.classId === member.classId);
+    const slot = M7_SUBSET.partySlots.find((s) => s.classId === member.classId);
     const spawn = slot?.spawn ?? { x: 0, y: 0 };
     const maxHp = deriveEntityBlueprint({ ...member, currentHp: 0 }, spawn).maxHp;
     return { ...member, currentHp: maxHp };
   });
-  return { members: members as [CharacterDraft, CharacterDraft] };
+  return { members: members as PartyDraft["members"] };
 }

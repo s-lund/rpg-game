@@ -41,6 +41,6 @@ describe("district generator", () => {
     const merged = applyCombatResultToCampaign(campaign, combat);
     expect(merged.currentSiteId).toBe(pkg.worldGraph.startSiteId);
     expect(pkg.interiorGraph.startSiteId).toBeDefined();
-    expect(merged.party.members.length).toBe(2);
+    expect(merged.party.members.length).toBe(4);
   });
 });

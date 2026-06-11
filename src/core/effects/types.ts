@@ -1,5 +1,5 @@
 import type { EntityId } from "../../shared/ids";
-import type { AttackResolution, CombatOutcome, ConditionId, DamageType } from "../types";
+import type { AttackResolution, CombatOutcome, ConditionId, DamageType, HealResolution } from "../types";
 
 export type Effect =
   | {
@@ -16,6 +16,13 @@ export type Effect =
       amount: number;
       damageType: DamageType;
       attackResolution?: AttackResolution;
+    }
+  | {
+      kind: "Heal";
+      effectId: string;
+      targetId: EntityId;
+      amount: number;
+      healResolution?: HealResolution;
     }
   | {
       kind: "ApplyCondition";
@@ -54,6 +61,7 @@ export type Effect =
 export const ALL_EFFECT_KINDS = [
   "MoveTo",
   "Damage",
+  "Heal",
   "ApplyCondition",
   "RemoveCondition",
   "SpendActionPoints",

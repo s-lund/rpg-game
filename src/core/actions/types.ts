@@ -1,4 +1,5 @@
 import type { EntityId } from "../../shared/ids";
+import type { SpellId } from "../characters/subset";
 
 export type Action =
   | {
@@ -12,6 +13,20 @@ export type Action =
       kind: "Strike";
       actionId: string;
       actorId: EntityId;
+      targetId: EntityId;
+    }
+  | {
+      kind: "CastSpell";
+      actionId: string;
+      actorId: EntityId;
+      spellId: SpellId;
+      targetId: EntityId;
+    }
+  | {
+      kind: "CastHeal";
+      actionId: string;
+      actorId: EntityId;
+      spellId: SpellId;
       targetId: EntityId;
     }
   | {

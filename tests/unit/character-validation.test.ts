@@ -2,25 +2,21 @@ import { describe, expect, it } from "vitest";
 import { createDefaultParty, validateCharacter, validateParty } from "../../src/core/characters/validate";
 import type { CharacterDraft } from "../../src/core/characters/types";
 
-function fighterDraft(overrides: Partial<CharacterDraft> = {}): CharacterDraft {
-  const base = createDefaultParty().members.find((m) => m.classId === "fighter")!;
-  return { ...base, ...overrides };
-}
-
-function rogueDraft(overrides: Partial<CharacterDraft> = {}): CharacterDraft {
-  const base = createDefaultParty().members.find((m) => m.classId === "rogue")!;
+function memberDraft(classId: CharacterDraft["classId"], overrides: Partial<CharacterDraft> = {}): CharacterDraft {
+  const base = createDefaultParty().members.find((m) => m.classId === classId)!;
   return { ...base, ...overrides };
 }
 
 describe("character validation", () => {
-  it("accepts default fighter and rogue drafts", () => {
-    expect(validateCharacter(fighterDraft())).toEqual({ ok: true });
-    expect(validateCharacter(rogueDraft())).toEqual({ ok: true });
+  it("accepts default party drafts", () => {
+    for (const member of createDefaultParty().members) {
+      expect(validateCharacter(member)).toEqual({ ok: true });
+    }
     expect(validateParty(createDefaultParty())).toEqual({ ok: true });
   });
 
   it("rejects empty names", () => {
-    const result = validateCharacter(fighterDraft({ name: "   " }));
+    const result = validateCharacter(memberDraft("fighter", { name: "   " }));
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.errors.some((e) => e.includes("name is required"))).toBe(true);
@@ -29,7 +25,7 @@ describe("character validation", () => {
 
   it("rejects abilities that exceed the point pool", () => {
     const result = validateCharacter(
-      fighterDraft({
+      memberDraft("fighter", {
         abilities: { str: 18, dex: 18, con: 18, int: 12, wis: 10, cha: 8 },
       }),
     );
@@ -41,7 +37,7 @@ describe("character validation", () => {
 
   it("requires fighter to pick athletics or acrobatics", () => {
     const result = validateCharacter(
-      fighterDraft({
+      memberDraft("fighter", {
         trainedSkills: ["intimidation", "medicine", "survival", "crafting"],
       }),
     );
@@ -53,7 +49,7 @@ describe("character validation", () => {
 
   it("requires rogue to include stealth", () => {
     const result = validateCharacter(
-      rogueDraft({
+      memberDraft("rogue", {
         trainedSkills: ["thievery", "deception", "acrobatics", "diplomacy", "intimidation", "athletics", "survival", "medicine"],
       }),
     );
@@ -63,17 +59,13 @@ describe("character validation", () => {
     }
   });
 
-  it("requires one fighter and one rogue in the party", () => {
+  it("requires all four classes in the party", () => {
     const party = createDefaultParty();
-    party.members[1] = {
-      ...party.members[0],
-      id: party.members[1].id,
-      name: "Duplicate Fighter",
-    };
+    party.members[3] = { ...party.members[0], id: party.members[3].id, name: "Duplicate" };
     const result = validateParty(party);
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.errors.join(" ")).toMatch(/one Fighter and one Rogue/);
+      expect(result.errors.join(" ")).toMatch(/cleric/);
     }
   });
 });

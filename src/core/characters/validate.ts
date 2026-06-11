@@ -1,8 +1,10 @@
 import type { EntityId } from "../../shared/ids";
 import {
+  clericRules,
   fighterRules,
-  M2_SUBSET,
+  M7_SUBSET,
   rogueRules,
+  wizardRules,
   type AbilityId,
   type ClassId,
   type SkillId,
@@ -13,6 +15,8 @@ import { deriveEntityBlueprint } from "./derive";
 
 const NAME_MIN = 1;
 const NAME_MAX = 32;
+
+const REQUIRED_CLASSES: ClassId[] = ["fighter", "rogue", "wizard", "cleric"];
 
 function fail(errors: string[]): ValidationResult {
   return errors.length === 0 ? { ok: true } : { ok: false, errors };
@@ -34,7 +38,7 @@ function validateAbilities(abilities: Record<AbilityId, number>, label: string):
   const errors: string[] = [];
   const { minScore, maxScore, pointPool, baseScore } = ABILITY_POINT_BUY;
 
-  for (const id of M2_SUBSET.abilities) {
+  for (const id of M7_SUBSET.abilities) {
     const score = abilities[id as AbilityId];
     if (score < minScore || score > maxScore) {
       errors.push(`${label}: ${id} must be between ${minScore} and ${maxScore}`);
@@ -57,14 +61,20 @@ function expectedSkillCount(classId: ClassId, intScore: number): number {
     const fighter = fighterRules();
     return fighter.requiredSkillPick + fighter.additionalSkillBase + intMod;
   }
-  const rogue = rogueRules();
-  return rogue.mandatoryTrainedSkills.length + rogue.additionalSkillBase + intMod;
+  if (classId === "rogue") {
+    const rogue = rogueRules();
+    return rogue.mandatoryTrainedSkills.length + rogue.additionalSkillBase + intMod;
+  }
+  if (classId === "wizard") {
+    return wizardRules().additionalSkillBase + intMod;
+  }
+  return clericRules().additionalSkillBase + intMod;
 }
 
 function validateSkills(draft: CharacterDraft): string[] {
   const errors: string[] = [];
   const label = draft.classId;
-  const classRules = M2_SUBSET.classes[draft.classId];
+  const classRules = M7_SUBSET.classes[draft.classId];
   const skills = draft.trainedSkills;
   const unique = new Set(skills);
 
@@ -111,7 +121,7 @@ function validateCurrentHp(draft: CharacterDraft): string[] {
     errors.push(`${draft.classId}: currentHp is required`);
     return errors;
   }
-  const slot = M2_SUBSET.partySlots.find((s) => s.classId === draft.classId);
+  const slot = M7_SUBSET.partySlots.find((s) => s.classId === draft.classId);
   const spawn = slot?.spawn ?? { x: 0, y: 0 };
   const maxHp = deriveEntityBlueprint(draft, spawn).maxHp;
   if (draft.currentHp < 0 || draft.currentHp > maxHp) {
@@ -133,14 +143,16 @@ export function validateCharacter(draft: CharacterDraft): ValidationResult {
 export function validateParty(party: PartyDraft): ValidationResult {
   const errors: string[] = [];
 
-  if (party.members.length !== 2) {
-    errors.push("party must have exactly 2 members");
+  if (party.members.length !== 4) {
+    errors.push("party must have exactly 4 members");
     return fail(errors);
   }
 
   const classes = party.members.map((m) => m.classId);
-  if (!classes.includes("fighter") || !classes.includes("rogue")) {
-    errors.push("party must include one Fighter and one Rogue");
+  for (const required of REQUIRED_CLASSES) {
+    if (!classes.includes(required)) {
+      errors.push(`party must include one ${required}`);
+    }
   }
 
   const ids = new Set(party.members.map((m) => m.id));
@@ -159,9 +171,9 @@ export function validateParty(party: PartyDraft): ValidationResult {
 }
 
 export function createDefaultParty(): PartyDraft {
-  const members = M2_SUBSET.partySlots.map((slot) => {
+  const members = M7_SUBSET.partySlots.map((slot) => {
     const classId = slot.classId as ClassId;
-    const defaults = M2_SUBSET.defaults[classId];
+    const defaults = M7_SUBSET.defaults[classId];
     const draft = {
       id: slot.defaultEntityId as EntityId,
       name: defaults.name,
@@ -174,5 +186,5 @@ export function createDefaultParty(): PartyDraft {
     return { ...draft, currentHp: maxHp };
   });
 
-  return { members: members as [CharacterDraft, CharacterDraft] };
+  return { members: members as PartyDraft["members"] };
 }

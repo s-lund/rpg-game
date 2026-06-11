@@ -1,7 +1,7 @@
 import type { BeatId, SiteId } from "../../shared/ids";
 import { deriveEntityBlueprint } from "../characters/derive";
-import { M2_SUBSET } from "../characters/subset";
-import type { CharacterDraft, PartyDraft } from "../characters/types";
+import { M7_SUBSET } from "../characters/subset";
+import type { PartyDraft } from "../characters/types";
 import {
   applyCampaignEffect,
   defaultCampaignActorId,
@@ -16,12 +16,12 @@ function ensurePartyHp(party: PartyDraft): PartyDraft {
     if (typeof member.currentHp === "number") {
       return member;
     }
-    const slot = M2_SUBSET.partySlots.find((s) => s.classId === member.classId);
+    const slot = M7_SUBSET.partySlots.find((s) => s.classId === member.classId);
     const spawn = slot?.spawn ?? { x: 0, y: 0 };
     const maxHp = deriveEntityBlueprint(member, spawn).maxHp;
     return { ...member, currentHp: maxHp };
   });
-  return { members: members as [CharacterDraft, CharacterDraft] };
+  return { members: members as PartyDraft["members"] };
 }
 
 export function createCampaignState(
