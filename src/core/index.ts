@@ -1,8 +1,18 @@
 /** Pure rules core — no three.js or DOM imports. */
 
-export type { AreaId, BeatId, DistrictId, ExitId, SiteId } from "../shared/ids";
+export type {
+  AreaId,
+  BattleMapId,
+  BeatId,
+  DistrictId,
+  ExitId,
+  LevelId,
+  PackId,
+  SiteId,
+  TilesetId,
+} from "../shared/ids";
 
-export const CORE_VERSION = "0.1.0-m7";
+export const CORE_VERSION = "0.1.0-m8";
 
 export type { Action } from "./actions/types";
 export { resolveAction, postActionEffects } from "./actions/resolve";
@@ -124,8 +134,42 @@ export { validateCharacter, validateParty, createDefaultParty } from "./characte
 export { deriveEntityBlueprint, derivePartyBlueprints, buildEncounterConfig } from "./characters/derive";
 export { serializeParty, deserializeParty } from "./characters/serialize";
 
+export type {
+  ContentPack,
+  PackDistrict,
+  DistrictLevel,
+  BattleMapDefinition,
+  BattleTileset,
+  BattleTileStyle,
+  PackArt,
+} from "./pack/types";
+export {
+  validateContentPack,
+  loadContentPack,
+  findPackGraph,
+} from "./pack/validate";
+export {
+  validateBattleMap,
+  resolveBattleMap,
+  MIN_BATTLE_DIM,
+  MAX_BATTLE_DIM,
+  type ResolvedBattleMap,
+  type ResolvedBattleTile,
+} from "./pack/battle-map";
+export {
+  buildPackEncounter,
+  resolveEncounterBattleMap,
+  type PackEncounterResult,
+} from "./pack/encounter";
+
 export { isFlanking, effectiveAc } from "./combat/flanking";
-export { manhattanDistance, isAdjacent, isInBounds, isTileOccupied } from "./combat/grid";
+export {
+  manhattanDistance,
+  isAdjacent,
+  isInBounds,
+  isTileBlocked,
+  isTileOccupied,
+} from "./combat/grid";
 export { tileDistance, isInRange, canTargetEnemy, canTargetAlly } from "./combat/range";
 export { inspectTarget, type TargetInspection, type InspectActionKind } from "./combat/inspect";
 export { attackHits, estimateHitPercent, damageBand } from "./combat/attack";
@@ -138,6 +182,7 @@ export type {
   GameState,
   GameEvent,
   Entity,
+  EntityBlueprint,
   CombatMeta,
   ConditionId,
   ClassId,

@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 750" preserveAspectRatio="none">
+  <defs>
+    <filter id="grain" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.013 0.016" numOctaves="3" seed="33" result="noise"/>
+      <feColorMatrix in="noise" type="matrix" values="0 0 0 0 0.30  0 0 0 0 0.27  0 0 0 0 0.24  0 0 0 0.10 0"/>
+      <feComposite operator="over" in2="SourceGraphic"/>
+    </filter>
+    <radialGradient id="sky" cx="50%" cy="44%" r="80%">
+      <stop offset="0%" stop-color="#cfc4ae"/>
+      <stop offset="50%" stop-color="#b3a98f"/>
+      <stop offset="85%" stop-color="#8d8062"/>
+      <stop offset="100%" stop-color="#645842"/>
+    </radialGradient>
+  </defs>
+
+  <!-- high air: the crown floats above cloud -->
+  <rect width="1000" height="750" fill="url(#sky)"/>
+  <rect width="1000" height="750" fill="transparent" filter="url(#grain)"/>
+
+  <!-- drifting cloud banks -->
+  <g fill="#d8d0bc" opacity="0.7" stroke="#a89c80" stroke-width="1.4">
+    <ellipse cx="170" cy="640" rx="120" ry="26"/>
+    <ellipse cx="270" cy="668" rx="90" ry="20"/>
+    <ellipse cx="840" cy="600" rx="110" ry="24"/>
+    <ellipse cx="760" cy="120" rx="100" ry="22"/>
+    <ellipse cx="130" cy="170" rx="90" ry="20"/>
+  </g>
+
+  <!-- crown platform -->
+  <circle cx="490" cy="380" r="230" fill="#cdbd96" stroke="#4e3a26" stroke-width="13"/>
+  <circle cx="490" cy="380" r="215" fill="none" stroke="#7a6244" stroke-width="2"/>
+  <!-- crenellations -->
+  <g fill="#cdbd96" stroke="#4e3a26" stroke-width="3">
+    <rect x="478" y="132" width="24" height="18"/>
+    <rect x="640" y="190" width="24" height="18" transform="rotate(40 652 199)"/>
+    <rect x="700" y="358" width="24" height="18" transform="rotate(85 712 367)"/>
+    <rect x="630" y="540" width="24" height="18" transform="rotate(135 642 549)"/>
+    <rect x="478" y="592" width="24" height="18" transform="rotate(180 490 601)"/>
+    <rect x="330" y="540" width="24" height="18" transform="rotate(225 342 549)"/>
+    <rect x="258" y="358" width="24" height="18" transform="rotate(275 270 367)"/>
+    <rect x="328" y="190" width="24" height="18" transform="rotate(320 340 199)"/>
+  </g>
+
+  <!-- warden's walk: sheltered ring walk, SW (site at 400,480) -->
+  <path d="M310,520 A200,200 0 0 1 290,330" fill="none" stroke="#b5a072" stroke-width="38"/>
+  <path d="M310,520 A200,200 0 0 1 290,330" fill="none" stroke="#5a4632" stroke-width="2.4" stroke-dasharray="10 7"/>
+  <g fill="#8a7350" stroke="#4e3a26" stroke-width="2">
+    <circle cx="318" cy="492" r="7"/>
+    <circle cx="296" cy="430" r="7"/>
+    <circle cx="294" cy="366" r="7"/>
+  </g>
+  <!-- brazier at the walk -->
+  <g transform="translate(400,480)">
+    <circle r="10" fill="#8a5a30" stroke="#4e3a26" stroke-width="2.4"/>
+    <path d="M-4,-8 q4,-8 8,0 q-2,-4 -4,-12" fill="none" stroke="#a4502e" stroke-width="2.2"/>
+  </g>
+
+  <!-- the great bell at the crown (site at 520,210) -->
+  <g transform="translate(520,230)">
+    <!-- bell housing frame -->
+    <path d="M-70,40 L-50,-40 L50,-40 L70,40" fill="none" stroke="#4e3a26" stroke-width="7"/>
+    <line x1="-50" y1="-40" x2="50" y2="-40" stroke="#4e3a26" stroke-width="7"/>
+    <!-- bell -->
+    <path d="M-34,28 C-34,-8 -18,-30 0,-30 C18,-30 34,-8 34,28 L-34,28 Z" fill="#9a8a5a" stroke="#3c2e1c" stroke-width="3.5"/>
+    <path d="M-34,28 L34,28" stroke="#3c2e1c" stroke-width="3.5"/>
+    <circle cx="0" cy="36" r="6" fill="#6e5938" stroke="#3c2e1c" stroke-width="2.4"/>
+    <!-- the crack -->
+    <path d="M8,-26 L2,-8 L12,6 L6,24" fill="none" stroke="#3c2e1c" stroke-width="2.2"/>
+  </g>
+
+  <!-- warden's seat near the bell -->
+  <g transform="translate(610,300)" fill="#b5a072" stroke="#4e3a26" stroke-width="2.4">
+    <rect x="-14" y="-10" width="28" height="20"/>
+    <line x1="-14" y1="-10" x2="14" y2="10" stroke-width="1" opacity="0.5"/>
+  </g>
+
+  <!-- stair down, S -->
+  <g transform="translate(490,560)" stroke="#4e3a26" fill="none">
+    <path d="M-22,12 L22,12 L22,-12 L-22,-12 Z" fill="#bfa97e" stroke-width="2.6"/>
+    <line x1="-12" y1="12" x2="-12" y2="-12" stroke-width="1.8"/>
+    <line x1="-2" y1="12" x2="-2" y2="-12" stroke-width="1.8"/>
+    <line x1="8" y1="12" x2="8" y2="-12" stroke-width="1.8"/>
+    <path d="M0,20 L0,30 M-5,26 L0,30 L5,26" stroke-width="2.2"/>
+  </g>
+  <text x="530" y="572" font-family="Georgia, serif" font-style="italic" font-size="14" fill="#4e3a26">down</text>
+
+  <!-- title -->
+  <g transform="translate(500,46)">
+    <path d="M-180,-22 L180,-22 L196,0 L180,22 L-180,22 L-196,0 Z" fill="#e3d2a6" stroke="#7a6244" stroke-width="2.2"/>
+    <text text-anchor="middle" y="0" font-family="Georgia, 'Times New Roman', serif" font-size="22" letter-spacing="5" fill="#4e3a26">THE BELL SPIRE</text>
+    <text text-anchor="middle" y="16" font-family="Georgia, 'Times New Roman', serif" font-style="italic" font-size="10" letter-spacing="2" fill="#7a6244">the Crown — open sky, the great bell, and its warden</text>
+  </g>
+
+  <rect x="8" y="8" width="984" height="734" fill="none" stroke="#4e3a26" stroke-width="6"/>
+  <rect x="18" y="18" width="964" height="714" fill="none" stroke="#7a6244" stroke-width="1.6"/>
+</svg>

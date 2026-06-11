@@ -2,8 +2,8 @@
 
 Build progress for EMBERWATCH. Milestone definitions live in `ROADMAP.md`.
 
-**Current milestone:** M7 (gate 2 — human acceptance pending)  
-**Last updated:** 2026-06-10 — M7 gate 1 complete
+**Current milestone:** M8 (gate 2 — human acceptance pending)  
+**Last updated:** 2026-06-11 — M8 gate 1 complete
 
 ---
 
@@ -19,7 +19,7 @@ Build progress for EMBERWATCH. Milestone definitions live in `ROADMAP.md`.
 | M5 Storytelling | **done** | pass | accepted |
 | M6 District generation | **gate 1 done** | pass | pending |
 | M7 Breadth + ranged combat | **gate 1 done** | pass | pending |
-| M8 Map presentation + content packs | pending | — | — |
+| M8 Map presentation + content packs | **gate 1 done** | pass | pending |
 | M9 Combat rules depth | pending | — | — |
 | M10 Tactical character art pass | pending | — | — |
 
@@ -102,3 +102,17 @@ Build progress for EMBERWATCH. Milestone definitions live in `ROADMAP.md`.
 **Gate 1:** `npm run test` (126 tests) — M7 contract + unit tests; frozen `pipeline.test.ts`, `transition.test.ts`, `narrator.test.ts`, `district.test.ts` unchanged.
 
 **Gate 2 (pending):** create 4-hero party; bow at range; Ray of Frost; heal ally; hover inspector; projectiles on hit; overlay PROCEDURAL flags.
+
+---
+
+## M8 — gate 1 done (2026-06-11)
+
+**Delivered:** Content-pack architecture (`src/core/pack/` — `ContentPack` types, `validateContentPack`, battle-map validator/resolver, `buildPackEncounter`); blocked terrain in combat core (`MapGrid.blocked`, Step rejects blocked tiles, enemy AI avoids them, survives replay); `derivePartyBlueprints` spawn overrides; `WorldSite.levelId` for multi-level district interiors. Content layer (`src/content/`): authored **Emberwatch** default pack — 9-site frontier world, **The Drowned Quay** (harbor, 1 level), **The Bell Spire** (tower, 3 levels), **The Ember Vaults** (undercroft, 2 levels), 18 themed encounters on 12 authored battle maps over 4 tilesets, per-site ambience; minimal **Mirrormarsh** alt pack (fen world, 1 district, marsh tileset) proving the seam; 9 illustrated SVG maps under `public/art/` (parchment world maps, district plans, per-level tower/dungeon floors). Renderer: manifest merge with pack entries; `StrategicMapScreen` illustrated backgrounds + per-level floor plans with stairs-aware token travel; `CombatScene` themed battle-map tiles (extruded walls/props, recessed water/chasm, tileset scene background); camera sized per encounter; pack picker on the recruit screen (persisted); combat on hostile world sites with victory → Held. Old saves (generated Ashen Ward, M3 demo) still resolve via legacy fallback.
+
+**Gate 1:** `npm run test` (156 tests) — `content-packs.test.ts`, `battle-map.test.ts`, `blocked-terrain.test.ts`, updated `combat-scene-dispose.test.ts`; frozen `pipeline.test.ts`, `transition.test.ts`, `narrator.test.ts`, `district.test.ts` and all other contract tests unchanged. `npm run build` clean.
+
+**Known simplification (flagged in overlay):** blocked terrain stops *landing* on walls; Step has no path check yet, so a 2–3 AP step can cross a wall tile. Path-aware movement is combat-rules-depth territory (M9).
+
+**Playtest fix (2026-06-11):** district sites were indistinguishable from battle sites on the world map (tester looked for districts at the Ashen Road / Cinder Market / Pilgrim's Rest — none of which are districts). District sites now render as larger gold ✦ markers with a DISTRICT caption; sidebar routes show `· District`; site status reads "District — can be entered" / "Safe haven" / "Point of interest" instead of a blanket Held/Hostile, and the red hostile marker ring is reserved for actual combat sites.
+
+**Gate 2 (pending):** illustrated world map on Enter World; enter Drowned Quay / Bell Spire (3 floor plans switch as you climb) / Ember Vaults; themed battle maps with walls that block movement; world-site fight on the Ashen Road flips it to Held; switch to The Mirrormarsh on the recruit screen and see a different game skin; overlay flags.

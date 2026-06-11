@@ -118,13 +118,16 @@ export function deriveEntityBlueprint(
   };
 }
 
-export function derivePartyBlueprints(party: PartyDraft): EntityBlueprint[] {
-  return M7_SUBSET.partySlots.map((slot) => {
+export function derivePartyBlueprints(
+  party: PartyDraft,
+  spawns?: { x: number; y: number }[],
+): EntityBlueprint[] {
+  return M7_SUBSET.partySlots.map((slot, index) => {
     const member = party.members.find((m) => m.classId === slot.classId);
     if (!member) {
       throw new Error(`party missing ${slot.classId}`);
     }
-    return deriveEntityBlueprint(member, slot.spawn);
+    return deriveEntityBlueprint(member, spawns?.[index] ?? slot.spawn);
   });
 }
 

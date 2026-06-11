@@ -53,7 +53,13 @@ export function createInitialState(config: InitialStateConfig): GameState {
   }
 
   return {
-    map: { width: config.width, height: config.height },
+    map: {
+      width: config.width,
+      height: config.height,
+      ...(config.blockedTiles && config.blockedTiles.length > 0
+        ? { blocked: config.blockedTiles.map((t) => ({ ...t })) }
+        : {}),
+    },
     entities,
     combat: {
       phase: "active",

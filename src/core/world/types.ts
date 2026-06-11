@@ -1,4 +1,4 @@
-import type { AreaId, BeatId, DistrictId, EncounterId, SiteId } from "../../shared/ids";
+import type { AreaId, BeatId, DistrictId, EncounterId, LevelId, SiteId } from "../../shared/ids";
 import type { PartyDraft } from "../characters/types";
 import type { GameEvent } from "../types";
 
@@ -14,6 +14,8 @@ export interface WorldSite {
   areaId?: AreaId;
   /** World-map site that enters this district (no combat on world layer). */
   districtId?: DistrictId;
+  /** District-interior level this site sits on (towers, dungeons). Omit on single-level maps. */
+  levelId?: LevelId;
   beatId?: BeatId;
   /** Map position as percentage of overworld width (0–100). */
   mapX: number;

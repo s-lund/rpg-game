@@ -64,6 +64,16 @@ export function loadManifest(): AssetManifest {
   return validateManifest(rawManifest);
 }
 
+/** Layer content-pack asset entries over the base manifest (pack entries win). */
+export function mergeManifests(
+  base: AssetManifest,
+  packEntries: Record<string, AssetEntry>,
+): AssetManifest {
+  return validateManifest({
+    assets: { ...base.assets, ...packEntries },
+  });
+}
+
 export function summarizeManifest(manifest: AssetManifest): ManifestSummary {
   const entries = Object.values(manifest.assets);
   const withReal = entries.filter((e) => e.real).length;

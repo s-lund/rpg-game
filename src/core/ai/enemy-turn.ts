@@ -1,7 +1,7 @@
 import type { EntityId } from "../../shared/ids";
 import type { Action } from "../actions/types";
 import { canTargetEnemy } from "../combat/range";
-import { isInBounds, isTileOccupied, manhattanDistance } from "../combat/grid";
+import { isInBounds, isTileBlocked, isTileOccupied, manhattanDistance } from "../combat/grid";
 import type { Entity, GameState } from "../types";
 
 function livingParty(state: GameState): Entity[] {
@@ -31,6 +31,7 @@ function stepTowardTarget(state: GameState, actor: Entity, target: Entity): Acti
       const x = actor.x + dx;
       const y = actor.y + dy;
       if (!isInBounds(state, x, y)) continue;
+      if (isTileBlocked(state, x, y)) continue;
       if (isTileOccupied(state, x, y, actor.id)) continue;
       const dist = manhattanDistance(x, y, target.x, target.y);
       if (dist >= currentDist) continue;

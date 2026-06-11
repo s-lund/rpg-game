@@ -1,0 +1,119 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 750" preserveAspectRatio="none">
+  <defs>
+    <filter id="grain" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.014 0.017" numOctaves="3" seed="41" result="noise"/>
+      <feColorMatrix in="noise" type="matrix" values="0 0 0 0 0.20  0 0 0 0 0.15  0 0 0 0 0.10  0 0 0 0.14 0"/>
+      <feComposite operator="over" in2="SourceGraphic"/>
+    </filter>
+    <radialGradient id="stone" cx="50%" cy="46%" r="78%">
+      <stop offset="0%" stop-color="#8a7a60"/>
+      <stop offset="55%" stop-color="#6e5f48"/>
+      <stop offset="85%" stop-color="#4c4030"/>
+      <stop offset="100%" stop-color="#2e261c"/>
+    </radialGradient>
+    <radialGradient id="emberglow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#e08a3c" stop-opacity="0.9"/>
+      <stop offset="60%" stop-color="#a4502e" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#a4502e" stop-opacity="0"/>
+    </radialGradient>
+    <g id="bonepile">
+      <ellipse rx="9" ry="4" fill="#cfc0a0" stroke="#3c2e1c" stroke-width="1.2"/>
+      <circle cx="-3" cy="-3" r="2.6" fill="#cfc0a0" stroke="#3c2e1c" stroke-width="1"/>
+      <circle cx="4" cy="-2" r="2" fill="#cfc0a0" stroke="#3c2e1c" stroke-width="1"/>
+    </g>
+  </defs>
+
+  <rect width="1000" height="750" fill="url(#stone)"/>
+  <rect width="1000" height="750" fill="transparent" filter="url(#grain)"/>
+
+  <!-- corridors between chambers (cut passages) -->
+  <g stroke="#241d14" stroke-width="46" stroke-linecap="round" fill="none">
+    <path d="M500,600 C455,520 405,450 360,375"/>
+    <path d="M360,375 C435,325 525,275 600,225"/>
+  </g>
+  <g stroke="#7a6a50" stroke-width="38" stroke-linecap="round" fill="none">
+    <path d="M500,600 C455,520 405,450 360,375"/>
+    <path d="M360,375 C435,325 525,275 600,225"/>
+  </g>
+  <g stroke="#3c2e1c" stroke-width="2" stroke-dasharray="8 6" fill="none" opacity="0.8">
+    <path d="M500,600 C455,520 405,450 360,375"/>
+    <path d="M360,375 C435,325 525,275 600,225"/>
+  </g>
+
+  <!-- The Vault Door chamber (500,600) -->
+  <g transform="translate(500,600)">
+    <rect x="-95" y="-70" width="190" height="140" fill="#7a6a50" stroke="#241d14" stroke-width="9"/>
+    <rect x="-83" y="-58" width="166" height="116" fill="none" stroke="#4c4030" stroke-width="2"/>
+    <!-- great door on the south wall -->
+    <path d="M-30,70 L-30,40 A30,30 0 0 1 30,40 L30,70" fill="#3c2e1c" stroke="#1c150e" stroke-width="4"/>
+    <circle cx="0" cy="52" r="5" fill="none" stroke="#9a8a5a" stroke-width="2.4"/>
+    <use href="#bonepile" transform="translate(-60,-38)"/>
+    <use href="#bonepile" transform="translate(62,30) scale(0.8)"/>
+  </g>
+
+  <!-- The Bone Walk (360,375): long gallery of niches -->
+  <g transform="translate(360,375) rotate(-28)">
+    <rect x="-150" y="-55" width="300" height="110" fill="#7a6a50" stroke="#241d14" stroke-width="9"/>
+    <rect x="-138" y="-43" width="276" height="86" fill="none" stroke="#4c4030" stroke-width="2"/>
+    <!-- niches along both walls -->
+    <g fill="#241d14" stroke="#1c150e" stroke-width="1.6">
+      <rect x="-128" y="-55" width="22" height="14"/>
+      <rect x="-86" y="-55" width="22" height="14"/>
+      <rect x="-44" y="-55" width="22" height="14"/>
+      <rect x="-2" y="-55" width="22" height="14"/>
+      <rect x="40" y="-55" width="22" height="14"/>
+      <rect x="82" y="-55" width="22" height="14"/>
+      <rect x="-128" y="41" width="22" height="14"/>
+      <rect x="-86" y="41" width="22" height="14"/>
+      <rect x="-44" y="41" width="22" height="14"/>
+      <rect x="-2" y="41" width="22" height="14"/>
+      <rect x="40" y="41" width="22" height="14"/>
+      <rect x="82" y="41" width="22" height="14"/>
+    </g>
+    <use href="#bonepile" transform="translate(-100,12)"/>
+    <use href="#bonepile" transform="translate(20,-12) scale(1.2)"/>
+    <use href="#bonepile" transform="translate(110,8) scale(0.9)"/>
+  </g>
+
+  <!-- Ember Cistern (600,225): round cistern of embers -->
+  <g transform="translate(600,225)">
+    <circle r="105" fill="#7a6a50" stroke="#241d14" stroke-width="9"/>
+    <circle r="92" fill="none" stroke="#4c4030" stroke-width="2"/>
+    <circle r="58" fill="#2e1812" stroke="#1c150e" stroke-width="5"/>
+    <circle r="58" fill="url(#emberglow)"/>
+    <g stroke="#e08a3c" stroke-width="1.6" opacity="0.85" fill="none">
+      <path d="M-30,-8 q8,-10 16,0 q8,10 16,0"/>
+      <path d="M-18,18 q8,-9 16,0"/>
+    </g>
+    <!-- walkway ring stones -->
+    <g fill="none" stroke="#3c2e1c" stroke-width="1.6" opacity="0.8">
+      <circle r="74" stroke-dasharray="10 8"/>
+    </g>
+  </g>
+
+  <!-- stair down to the Deep Vault, NE of cistern -->
+  <g transform="translate(728,168)" stroke="#1c150e" fill="none">
+    <path d="M-22,12 L22,12 L22,-12 L-22,-12 Z" fill="#5c5040" stroke-width="3"/>
+    <line x1="-12" y1="12" x2="-12" y2="-12" stroke-width="2"/>
+    <line x1="-2" y1="12" x2="-2" y2="-12" stroke-width="2"/>
+    <line x1="8" y1="12" x2="8" y2="-12" stroke-width="2"/>
+    <path d="M30,0 L40,0 M36,-5 L40,0 L36,5" stroke="#cfc0a0" stroke-width="2.2"/>
+  </g>
+  <text x="775" y="174" font-family="Georgia, serif" font-style="italic" font-size="14" fill="#cfc0a0">down</text>
+
+  <!-- scattered candle glows -->
+  <g>
+    <circle cx="430" cy="520" r="16" fill="url(#emberglow)"/>
+    <circle cx="300" cy="300" r="14" fill="url(#emberglow)"/>
+  </g>
+
+  <!-- title -->
+  <g transform="translate(500,46)">
+    <path d="M-185,-22 L185,-22 L201,0 L185,22 L-185,22 L-201,0 Z" fill="#241d14" stroke="#9a8a5a" stroke-width="2.2"/>
+    <text text-anchor="middle" y="0" font-family="Georgia, 'Times New Roman', serif" font-size="22" letter-spacing="5" fill="#d8c9a4">THE EMBER VAULTS</text>
+    <text text-anchor="middle" y="16" font-family="Georgia, 'Times New Roman', serif" font-style="italic" font-size="10" letter-spacing="2" fill="#9a8a5a">the Ossuary — first descent beneath the cathedral</text>
+  </g>
+
+  <rect x="8" y="8" width="984" height="734" fill="none" stroke="#1c150e" stroke-width="6"/>
+  <rect x="18" y="18" width="964" height="714" fill="none" stroke="#5c5040" stroke-width="1.6"/>
+</svg>

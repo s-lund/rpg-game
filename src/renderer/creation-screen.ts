@@ -15,10 +15,20 @@ import {
 
 const SCREEN_ID = "emberwatch-creation-screen";
 
+export interface PackChoice {
+  id: string;
+  label: string;
+  description?: string;
+}
+
 export interface CreationScreenOptions {
   onEnterWorld: (party: PartyDraft) => void;
   onContinueSaved?: () => void;
   hasSavedCampaign?: () => boolean;
+  /** Selectable content packs (campaign worlds); omit to hide the picker. */
+  packs?: PackChoice[];
+  getSelectedPackId?: () => string;
+  onPackChange?: (packId: string) => void;
 }
 
 interface AbilityRowRefs {
@@ -80,6 +90,10 @@ export class CreationScreen {
       "Build a 4-hero party (archer Fighter, Rogue, Wizard, Cleric) at level 1. Abilities use a point pool from base 10. Ancestry/background are fixed defaults — see dev overlay.";
     subtitle.style.cssText = "margin: 0 0 20px; max-width: 720px; color: #a8a4a0; text-align: center;";
     this.root.appendChild(subtitle);
+
+    if (options.packs && options.packs.length > 1) {
+      this.root.appendChild(this.buildPackPicker(options));
+    }
 
     const columns = document.createElement("div");
     columns.style.cssText = [
@@ -154,6 +168,70 @@ export class CreationScreen {
 
   getElement(): HTMLDivElement {
     return this.root;
+  }
+
+  private buildPackPicker(options: CreationScreenOptions): HTMLDivElement {
+    const wrap = document.createElement("div");
+    wrap.style.cssText = [
+      "display: flex",
+      "flex-direction: column",
+      "align-items: center",
+      "gap: 6px",
+      "margin: 0 0 18px",
+      "width: min(720px, 100%)",
+    ].join(";");
+
+    const title = document.createElement("div");
+    title.textContent = "Campaign world";
+    title.style.cssText =
+      "font-size: 12px; font-weight: 600; color: #9a9080; text-transform: uppercase; letter-spacing: 0.04em;";
+    wrap.appendChild(title);
+
+    const row = document.createElement("div");
+    row.style.cssText = "display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;";
+    wrap.appendChild(row);
+
+    const descEl = document.createElement("p");
+    descEl.style.cssText =
+      "margin: 2px 0 0; font-size: 12px; color: #8a857c; text-align: center; min-height: 1.4em;";
+    wrap.appendChild(descEl);
+
+    const buttons = new Map<string, HTMLButtonElement>();
+    const selectedId = (): string => options.getSelectedPackId?.() ?? options.packs![0]!.id;
+
+    const paint = (): void => {
+      const current = selectedId();
+      for (const [id, btn] of buttons) {
+        const active = id === current;
+        btn.style.borderColor = active ? "rgba(255, 180, 60, 0.7)" : "rgba(100, 140, 200, 0.4)";
+        btn.style.color = active ? "#ffb43c" : "#a8b4c8";
+        btn.style.background = active ? "rgba(255, 180, 60, 0.14)" : "rgba(30, 36, 50, 0.6)";
+      }
+      descEl.textContent =
+        options.packs!.find((p) => p.id === current)?.description ?? "";
+    };
+
+    for (const pack of options.packs!) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = pack.label;
+      btn.style.cssText = [
+        "padding: 7px 16px",
+        "border-radius: 6px",
+        "border: 1px solid",
+        "cursor: pointer",
+        "font: 600 13px/1 ui-sans-serif, system-ui, sans-serif",
+      ].join(";");
+      btn.addEventListener("click", () => {
+        options.onPackChange?.(pack.id);
+        paint();
+      });
+      buttons.set(pack.id, btn);
+      row.appendChild(btn);
+    }
+
+    paint();
+    return wrap;
   }
 
   private buildMemberPanel(member: CharacterDraft, classId: CharacterDraft["classId"]): HTMLDivElement {

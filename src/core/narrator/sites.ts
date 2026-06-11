@@ -12,6 +12,14 @@ const SITE_AMBIENCE: Record<SiteId, string> = {
     "A cracked bell hangs mute above the ward. Pigeons scatter from empty niches.",
 };
 
-export function formatSiteAmbience(siteId: SiteId, siteLabel?: string): string {
-  return SITE_AMBIENCE[siteId] ?? `The ruins of ${siteLabel ?? siteId} wait in silence.`;
+export function formatSiteAmbience(
+  siteId: SiteId,
+  siteLabel?: string,
+  catalog?: Record<SiteId, string>,
+): string {
+  return (
+    catalog?.[siteId] ??
+    SITE_AMBIENCE[siteId] ??
+    `The ruins of ${siteLabel ?? siteId} wait in silence.`
+  );
 }

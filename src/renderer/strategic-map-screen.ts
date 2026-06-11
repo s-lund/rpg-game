@@ -2,11 +2,13 @@ import {
   countHeldSites,
   deriveEntityBlueprint,
   findTravelPath,
-  getSiteControl,
   getTravelDestinations,
   isSiteHeld,
+  resolveSiteKind,
   M2_SUBSET,
   type CampaignState,
+  type DistrictLevel,
+  type LevelId,
   type SiteId,
   type WorldGraph,
   type WorldSite,
@@ -19,6 +21,8 @@ export interface WorldMapBindOptions {
   onTravelArrived?: (siteId: SiteId) => void;
   onEnterDistrict?: () => void;
   interiorGraph?: WorldGraph | null;
+  /** Illustrated map background (resolved from the asset manifest); null → procedural parchment. */
+  backgroundUrl?: string | null;
 }
 
 export interface DistrictMapBindOptions {
@@ -26,6 +30,10 @@ export interface DistrictMapBindOptions {
   onAreaArrived?: (siteId: SiteId) => void;
   onReturnToWorldMap?: () => void;
   canReturnToWorldMap?: () => boolean;
+  /** Vertical levels of this district (tower floors, dungeon depths). */
+  levels?: DistrictLevel[];
+  /** Per-level illustrated background (resolved from the asset manifest). */
+  backgroundForLevel?: (levelId: LevelId) => string | null;
 }
 
 const TRAVEL_MS = 2800;
@@ -51,6 +59,15 @@ function currentPosition(state: CampaignState, layer: StrategicMapLayer): SiteId
     return state.currentAreaSiteId;
   }
   return state.currentSiteId;
+}
+
+/** Human status for a site: combat sites are Held/Hostile, the rest say what they are. */
+function siteStatusLabel(state: CampaignState, site: WorldSite): string {
+  if (site.districtId) return "District — can be entered";
+  const kind = resolveSiteKind(site);
+  if (kind === "shelter") return "Safe haven";
+  if (kind === "quest") return "Point of interest";
+  return isSiteHeld(state, site.id) ? "Held" : "Hostile";
 }
 
 /** Shared parchment-style strategic map — world map and district map use the same UI. */
@@ -82,6 +99,10 @@ export class StrategicMapScreen {
   private canReturnToWorldMap: (() => boolean) | null = null;
   private interiorGraph: WorldGraph | null = null;
   private districtTravelHandler: ((targetSiteId: SiteId) => boolean) | null = null;
+  private readonly backgroundEl: HTMLImageElement;
+  private levels: DistrictLevel[] | null = null;
+  private backgroundForLevel: ((levelId: LevelId) => string | null) | null = null;
+  private displayedLevelId: LevelId | null = null;
 
   constructor(container: HTMLElement, layer: StrategicMapLayer) {
     this.layer = layer;
@@ -157,6 +178,22 @@ export class StrategicMapScreen {
       "linear-gradient(160deg, #3a3020 0%, #1a1410 40%, #0e0c0a 100%)",
     ].join(" ");
     this.mapViewport.appendChild(this.mapSurface);
+
+    // Illustrated background from the content pack; gradient above stays as fallback.
+    this.backgroundEl = document.createElement("img");
+    this.backgroundEl.alt = "";
+    this.backgroundEl.draggable = false;
+    this.backgroundEl.style.cssText = [
+      "position: absolute",
+      "inset: 0",
+      "width: 100%",
+      "height: 100%",
+      "object-fit: fill",
+      "display: none",
+      "pointer-events: none",
+      "user-select: none",
+    ].join("; ");
+    this.mapSurface.appendChild(this.backgroundEl);
 
     this.pathsSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     this.pathsSvg.setAttribute("viewBox", "0 0 100 100");
@@ -265,6 +302,7 @@ export class StrategicMapScreen {
     this.onTravelArrived = options?.onTravelArrived ?? null;
     this.onEnterDistrict = options?.onEnterDistrict ?? null;
     this.interiorGraph = options?.interiorGraph ?? null;
+    this.setBackground(options?.backgroundUrl ?? null);
     this.buildMapChrome(graph);
     this.unsubscribe = session.subscribe(() => this.refresh());
     this.refresh();
@@ -285,13 +323,53 @@ export class StrategicMapScreen {
     this.onAreaArrived = options.onAreaArrived ?? null;
     this.onReturnToWorldMap = options.onReturnToWorldMap ?? null;
     this.canReturnToWorldMap = options.canReturnToWorldMap ?? null;
+    this.levels = options.levels && options.levels.length > 0 ? options.levels : null;
+    this.backgroundForLevel = options.backgroundForLevel ?? null;
     this.titleEl.textContent = options.districtLabel;
     this.subtitleEl.textContent =
       "District map — click reachable areas to move. Only the entrance returns to the world map.";
+    this.displayedLevelId = this.levelOfSite(currentPosition(session.getState(), this.layer));
+    this.applyLevelBackground();
     this.buildMapChrome(graph);
     this.unsubscribe = session.subscribe(() => this.refresh());
     this.refresh();
     this.snapTokenTo(currentPosition(session.getState(), this.layer));
+  }
+
+  private setBackground(url: string | null): void {
+    if (url) {
+      this.backgroundEl.src = url;
+      this.backgroundEl.style.display = "block";
+    } else {
+      this.backgroundEl.removeAttribute("src");
+      this.backgroundEl.style.display = "none";
+    }
+  }
+
+  private levelOfSite(siteId: SiteId): LevelId | null {
+    if (!this.levels) return null;
+    const site = this.graph ? siteById(this.graph, siteId) : undefined;
+    return site?.levelId ?? this.levels[0]!.id;
+  }
+
+  private applyLevelBackground(): void {
+    if (this.levels && this.displayedLevelId && this.backgroundForLevel) {
+      this.setBackground(this.backgroundForLevel(this.displayedLevelId));
+    }
+  }
+
+  private setDisplayedLevel(levelId: LevelId | null): void {
+    if (levelId === this.displayedLevelId) return;
+    this.displayedLevelId = levelId;
+    this.applyLevelBackground();
+    if (this.graph) {
+      this.buildMapChrome(this.graph);
+    }
+  }
+
+  private isSiteVisible(site: WorldSite): boolean {
+    if (!this.levels || !this.displayedLevelId) return true;
+    return (site.levelId ?? this.levels[0]!.id) === this.displayedLevelId;
   }
 
   show(): void {
@@ -311,6 +389,10 @@ export class StrategicMapScreen {
     this.onAreaArrived = null;
     this.onReturnToWorldMap = null;
     this.canReturnToWorldMap = null;
+    this.levels = null;
+    this.backgroundForLevel = null;
+    this.displayedLevelId = null;
+    this.setBackground(null);
   }
 
   private buildMapChrome(graph: WorldGraph): void {
@@ -319,6 +401,7 @@ export class StrategicMapScreen {
     this.siteButtons.clear();
 
     for (const site of graph.sites) {
+      if (!this.isSiteVisible(site)) continue;
       const btn = document.createElement("button");
       btn.type = "button";
       btn.dataset.siteId = site.id;
@@ -340,16 +423,27 @@ export class StrategicMapScreen {
         "pointer-events: auto",
       ].join("; ");
 
+      const isDistrict = Boolean(site.districtId);
       const marker = document.createElement("span");
       marker.style.cssText = [
-        "width: 22px",
-        "height: 22px",
+        `width: ${isDistrict ? 26 : 22}px`,
+        `height: ${isDistrict ? 26 : 22}px`,
         "border-radius: 50%",
-        "background: radial-gradient(circle at 40% 35%, #6a5a48, #3a3028)",
+        isDistrict
+          ? "background: radial-gradient(circle at 40% 35%, #8a7448, #4a3c22)"
+          : "background: radial-gradient(circle at 40% 35%, #6a5a48, #3a3028)",
         "border: 2px solid rgba(180, 150, 100, 0.5)",
         "box-shadow: 0 2px 6px rgba(0,0,0,0.5)",
         "transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s",
+        "display: flex",
+        "align-items: center",
+        "justify-content: center",
+        "font-size: 12px",
+        "color: #f0e0b0",
       ].join("; ");
+      if (isDistrict) {
+        marker.textContent = "✦";
+      }
       btn.appendChild(marker);
 
       const label = document.createElement("span");
@@ -366,6 +460,21 @@ export class StrategicMapScreen {
       ].join("; ");
       btn.appendChild(label);
 
+      if (isDistrict) {
+        const tag = document.createElement("span");
+        tag.textContent = "District";
+        tag.style.cssText = [
+          "font-size: 9px",
+          "font-weight: 700",
+          "letter-spacing: 0.08em",
+          "text-transform: uppercase",
+          "color: #e8c878",
+          "text-shadow: 0 1px 3px rgba(0,0,0,0.9)",
+          "pointer-events: none",
+        ].join("; ");
+        btn.appendChild(tag);
+      }
+
       btn.addEventListener("click", () => this.handleSiteClick(site.id));
       this.sitesLayer.appendChild(btn);
       this.siteButtons.set(site.id, btn);
@@ -374,12 +483,16 @@ export class StrategicMapScreen {
 
   private drawPaths(graph: WorldGraph): void {
     this.pathsSvg.replaceChildren();
+    // Illustrated maps paint their own roads; procedural lines would double them.
+    if (this.backgroundEl.style.display !== "none") return;
     const drawn = new Set<string>();
 
     for (const edge of graph.edges) {
       const from = siteById(graph, edge.from);
       const to = siteById(graph, edge.to);
       if (!from || !to) continue;
+      // cross-level edges (stairs) have no path on a single level's map
+      if (!this.isSiteVisible(from) || !this.isSiteVisible(to)) continue;
 
       const key = [edge.from, edge.to].sort().join("|");
       if (drawn.has(key)) continue;
@@ -400,6 +513,9 @@ export class StrategicMapScreen {
   private refresh(): void {
     if (!this.session || !this.graph) return;
     const state = this.session.getState();
+    if (!this.animating && this.levels) {
+      this.setDisplayedLevel(this.levelOfSite(currentPosition(state, this.layer)));
+    }
     this.renderSidebar(state, this.graph);
     this.updateSiteMarkers(state, this.graph);
     if (!this.animating) {
@@ -415,7 +531,7 @@ export class StrategicMapScreen {
 
     const currentSite = siteById(graph, pos);
     const tier = currentSite?.tier ?? 1;
-    const control = getSiteControl(state, pos);
+    const status = currentSite ? siteStatusLabel(state, currentSite) : "Unknown";
     const progressGraph = this.layer === "district" ? graph : (this.interiorGraph ?? graph);
     const { held, total } = countHeldSites(state, progressGraph);
     const progressLabel = this.layer === "district" ? "Areas secured" : "Districts";
@@ -425,11 +541,19 @@ export class StrategicMapScreen {
         ? "<div style='font-size:11px;color:#666;margin-bottom:6px'>World map → district</div>"
         : "";
 
+    const currentLevel =
+      this.levels && this.levels.length > 1
+        ? this.levels.find((l) => l.id === this.levelOfSite(pos))
+        : null;
+
     this.currentSiteEl.innerHTML = [
       breadcrumb,
       "<div style='font-size:11px;color:#888;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.04em'>You are here</div>",
       `<div style='font-size:18px;font-weight:600;color:#e8c878'>${escapeHtml(currentLabel)}</div>`,
-      `<div style='font-size:12px;color:#9a9080;margin-top:4px'>Tier ${tier} · ${control === "held" ? "Held" : "Hostile"}</div>`,
+      currentLevel
+        ? `<div style='font-size:12px;color:#b8a8d8;margin-top:2px'>Level: ${escapeHtml(currentLevel.label)}</div>`
+        : "",
+      `<div style='font-size:12px;color:#9a9080;margin-top:4px'>Tier ${tier} · ${escapeHtml(status)}</div>`,
       `<div style='font-size:12px;color:#7ab8a8;margin-top:4px'>${progressLabel}: ${held}/${total}</div>`,
       this.animating
         ? "<div style='font-size:12px;color:#9a9080;margin-top:6px'>Traveling…</div>"
@@ -475,8 +599,13 @@ export class StrategicMapScreen {
       for (const destId of destinations) {
         const btn = document.createElement("button");
         btn.type = "button";
-        const destControl = isSiteHeld(state, destId) ? " · Held" : " · Hostile";
-        btn.textContent = `${siteLabel(graph, destId)}${destControl}`;
+        const destSite = siteById(graph, destId);
+        const destStatus = destSite
+          ? destSite.districtId
+            ? " · District"
+            : ` · ${siteStatusLabel(state, destSite)}`
+          : "";
+        btn.textContent = `${siteLabel(graph, destId)}${destStatus}`;
         btn.disabled = this.animating;
         btn.style.cssText = [
           "cursor: pointer",
@@ -545,6 +674,9 @@ export class StrategicMapScreen {
         labelEl.textContent = held ? `${base} (Held)` : base;
       }
 
+      const kind = resolveSiteKind(site);
+      const isCombatSite = !site.districtId && kind === "combat";
+
       if (isCurrent) {
         marker.style.border = "2px solid #e8a030";
         marker.style.boxShadow = "0 0 12px rgba(232, 160, 48, 0.7), 0 2px 6px rgba(0,0,0,0.5)";
@@ -557,9 +689,14 @@ export class StrategicMapScreen {
         marker.style.border = "2px solid #5ab8c8";
         marker.style.boxShadow = "0 0 10px rgba(90, 184, 200, 0.45), 0 2px 6px rgba(0,0,0,0.5)";
         marker.style.transform = "scale(1.02)";
-      } else {
+      } else if (isCombatSite) {
+        // only actual combat sites read as hostile
         marker.style.border = "2px solid rgba(200, 90, 80, 0.65)";
         marker.style.boxShadow = "0 0 6px rgba(180, 70, 60, 0.35), 0 2px 6px rgba(0,0,0,0.5)";
+        marker.style.transform = "scale(1)";
+      } else {
+        marker.style.border = "2px solid rgba(200, 170, 110, 0.6)";
+        marker.style.boxShadow = "0 0 6px rgba(180, 150, 90, 0.3), 0 2px 6px rgba(0,0,0,0.5)";
         marker.style.transform = "scale(1)";
       }
     }
@@ -635,6 +772,18 @@ export class StrategicMapScreen {
       if (!site) {
         step();
         return;
+      }
+
+      // Stairs: waypoint on another level — switch the floor plan and place the
+      // token there instantly, then keep walking on the new level's map.
+      if (this.levels) {
+        const waypointLevel = site.levelId ?? this.levels[0]!.id;
+        if (waypointLevel !== this.displayedLevelId) {
+          this.setDisplayedLevel(waypointLevel);
+          this.snapTokenTo(siteId);
+          step();
+          return;
+        }
       }
 
       this.tokenEl.style.transition = `left ${TRAVEL_MS}ms ease-in-out, top ${TRAVEL_MS}ms ease-in-out`;

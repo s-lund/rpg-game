@@ -1,4 +1,4 @@
-import type { EncounterId } from "../../shared/ids";
+import type { BattleMapId, EncounterId } from "../../shared/ids";
 import type { EntityBlueprint } from "../types";
 import { M2_MAP_HEIGHT, M2_MAP_WIDTH } from "../scenarios/m1-demo";
 
@@ -7,6 +7,8 @@ export interface EncounterTemplate {
   width: number;
   height: number;
   enemies: EntityBlueprint[];
+  /** Themed battle-map layout (content pack); absent → plain open grid. */
+  battleMapId?: BattleMapId;
 }
 
 export const M4_DEMO_ENCOUNTERS: Record<EncounterId, EncounterTemplate> = {

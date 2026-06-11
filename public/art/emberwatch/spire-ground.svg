@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 750" preserveAspectRatio="none">
+  <defs>
+    <filter id="grain" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.013 0.016" numOctaves="3" seed="31" result="noise"/>
+      <feColorMatrix in="noise" type="matrix" values="0 0 0 0 0.30  0 0 0 0 0.25  0 0 0 0 0.20  0 0 0 0.10 0"/>
+      <feComposite operator="over" in2="SourceGraphic"/>
+    </filter>
+    <radialGradient id="vignette" cx="50%" cy="46%" r="75%">
+      <stop offset="0%" stop-color="#ded0b2"/>
+      <stop offset="55%" stop-color="#ccb992"/>
+      <stop offset="85%" stop-color="#a68c62"/>
+      <stop offset="100%" stop-color="#75603e"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1000" height="750" fill="url(#vignette)"/>
+  <rect width="1000" height="750" fill="transparent" filter="url(#grain)"/>
+
+  <!-- tower footprint: thick outer wall -->
+  <circle cx="500" cy="400" r="300" fill="#d6c69e" stroke="#4e3a26" stroke-width="16"/>
+  <circle cx="500" cy="400" r="282" fill="none" stroke="#7a6244" stroke-width="2"/>
+  <!-- masonry ticks on the wall -->
+  <g stroke="#4e3a26" stroke-width="2" opacity="0.6">
+    <line x1="500" y1="92" x2="500" y2="112"/>
+    <line x1="712" y1="188" x2="698" y2="202"/>
+    <line x1="800" y1="400" x2="780" y2="400"/>
+    <line x1="712" y1="612" x2="698" y2="598"/>
+    <line x1="288" y1="612" x2="302" y2="598"/>
+    <line x1="200" y1="400" x2="220" y2="400"/>
+    <line x1="288" y1="188" x2="302" y2="202"/>
+  </g>
+
+  <!-- gatehouse entry, south (around 500,585+) -->
+  <path d="M455,690 L455,610 L545,610 L545,690" fill="#d6c69e" stroke="#4e3a26" stroke-width="10"/>
+  <path d="M470,690 L470,624 L530,624 L530,690" fill="#c4b088" stroke="#7a6244" stroke-width="2"/>
+  <!-- portcullis marks -->
+  <g stroke="#4e3a26" stroke-width="2.4">
+    <line x1="478" y1="652" x2="522" y2="652"/>
+    <line x1="484" y1="624" x2="484" y2="690"/>
+    <line x1="500" y1="624" x2="500" y2="690"/>
+    <line x1="516" y1="624" x2="516" y2="690"/>
+  </g>
+
+  <!-- inner hall ring (Hall of Echoes around 500,315) -->
+  <circle cx="500" cy="330" r="150" fill="#cbb88e" stroke="#5a4632" stroke-width="5"/>
+  <circle cx="500" cy="330" r="138" fill="none" stroke="#7a6244" stroke-width="1.6" stroke-dasharray="8 6"/>
+  <!-- pillars of the hall -->
+  <g fill="#8a7350" stroke="#4e3a26" stroke-width="2">
+    <circle cx="430" cy="265" r="9"/>
+    <circle cx="570" cy="265" r="9"/>
+    <circle cx="430" cy="395" r="9"/>
+    <circle cx="570" cy="395" r="9"/>
+  </g>
+  <!-- fallen beam + debris -->
+  <g stroke="#6d543a" stroke-width="5" opacity="0.85">
+    <line x1="540" y1="300" x2="612" y2="352"/>
+  </g>
+  <g fill="#a68c62" stroke="#5a4632" stroke-width="1.2" opacity="0.8">
+    <circle cx="392" cy="470" r="5"/>
+    <circle cx="406" cy="481" r="3.5"/>
+    <circle cx="610" cy="470" r="4"/>
+  </g>
+
+  <!-- passage gatehouse → hall -->
+  <path d="M482,610 L482,470 M518,610 L518,470" stroke="#5a4632" stroke-width="3" stroke-dasharray="10 7" fill="none"/>
+
+  <!-- stair up, drawn at NW of hall (leads to the Long Stair) -->
+  <g transform="translate(500,205) rotate(0)" stroke="#4e3a26" fill="none">
+    <path d="M-26,16 L26,16 L26,-16 L-26,-16 Z" fill="#bfa97e" stroke-width="3"/>
+    <line x1="-16" y1="16" x2="-16" y2="-16" stroke-width="2"/>
+    <line x1="-6" y1="16" x2="-6" y2="-16" stroke-width="2"/>
+    <line x1="4" y1="16" x2="4" y2="-16" stroke-width="2"/>
+    <line x1="14" y1="16" x2="14" y2="-16" stroke-width="2"/>
+    <path d="M-34,0 L-44,0 M-40,-5 L-44,0 L-40,5" stroke-width="2.4"/>
+  </g>
+  <text x="556" y="210" font-family="Georgia, serif" font-style="italic" font-size="15" fill="#5a4632">stair up</text>
+
+  <!-- title -->
+  <g transform="translate(500,46)">
+    <path d="M-180,-22 L180,-22 L196,0 L180,22 L-180,22 L-196,0 Z" fill="#e3d2a6" stroke="#7a6244" stroke-width="2.2"/>
+    <text text-anchor="middle" y="0" font-family="Georgia, 'Times New Roman', serif" font-size="22" letter-spacing="5" fill="#4e3a26">THE BELL SPIRE</text>
+    <text text-anchor="middle" y="16" font-family="Georgia, 'Times New Roman', serif" font-style="italic" font-size="10" letter-spacing="2" fill="#7a6244">ground hall — gatehouse and the Hall of Echoes</text>
+  </g>
+
+  <rect x="8" y="8" width="984" height="734" fill="none" stroke="#4e3a26" stroke-width="6"/>
+  <rect x="18" y="18" width="964" height="714" fill="none" stroke="#7a6244" stroke-width="1.6"/>
+</svg>

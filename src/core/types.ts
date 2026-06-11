@@ -63,6 +63,8 @@ export interface CombatMeta {
 export interface MapGrid {
   width: number;
   height: number;
+  /** Impassable tiles (walls, water, chasms) from the battle map; absent → all tiles open. */
+  blocked?: { x: number; y: number }[];
 }
 
 export interface GameState {
@@ -104,4 +106,5 @@ export interface InitialStateConfig {
   height: number;
   party: EntityBlueprint[];
   enemies: EntityBlueprint[];
+  blockedTiles?: { x: number; y: number }[];
 }

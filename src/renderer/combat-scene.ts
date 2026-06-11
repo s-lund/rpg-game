@@ -1,9 +1,15 @@
 import * as THREE from "three";
-import type { GameEvent, GameState } from "../core/index";
+import type { GameEvent, GameState, ResolvedBattleMap } from "../core/index";
 
 export interface CombatSceneConfig {
-  gridSize: number;
+  width: number;
+  height: number;
   tileSize: number;
+}
+
+function cssHex(color: string, fallback: number): number {
+  const match = /^#([0-9a-f]{6})$/i.exec(color.trim());
+  return match ? Number.parseInt(match[1]!, 16) : fallback;
 }
 
 interface VisualEntity {
@@ -29,10 +35,12 @@ interface ProjectileVisual {
 /** Read-only consumer: updates meshes from events only — no authoritative game state. */
 export class CombatScene {
   readonly group = new THREE.Group();
-  private readonly gridSize: number;
+  private readonly gridWidth: number;
+  private readonly gridHeight: number;
   private readonly tileSize: number;
   private readonly visuals = new Map<string, VisualEntity>();
   private readonly tileMeshes: THREE.Mesh[] = [];
+  private readonly propMeshes: THREE.Mesh[] = [];
   private readonly projectiles: ProjectileVisual[] = [];
   private selectedEntityId: string | null = null;
   private rangeHighlightActorId: string | null = null;
@@ -41,7 +49,8 @@ export class CombatScene {
   private readonly sceneRef: { current: THREE.Scene | null } = { current: null };
 
   constructor(config: CombatSceneConfig) {
-    this.gridSize = config.gridSize;
+    this.gridWidth = config.width;
+    this.gridHeight = config.height;
     this.tileSize = config.tileSize;
   }
 
@@ -59,32 +68,93 @@ export class CombatScene {
     this.refreshHighlights();
   }
 
-  buildTiles(scene: THREE.Scene): void {
+  /**
+   * Builds the tactical floor. With a battle map, tile colors/props come from the
+   * content pack's tileset; without one, falls back to the plain checkerboard.
+   */
+  buildTiles(scene: THREE.Scene, battleMap?: ResolvedBattleMap | null): void {
     this.sceneRef.current = scene;
-    const half = (this.gridSize * this.tileSize) / 2;
 
-    for (let x = 0; x < this.gridSize; x++) {
-      for (let z = 0; z < this.gridSize; z++) {
+    if (battleMap) {
+      this.buildBattleMapTiles(scene, battleMap);
+      return;
+    }
+
+    for (let x = 0; x < this.gridWidth; x++) {
+      for (let z = 0; z < this.gridHeight; z++) {
         const isLight = (x + z) % 2 === 0;
-        const tile = new THREE.Mesh(
-          new THREE.PlaneGeometry(this.tileSize * 0.98, this.tileSize * 0.98),
-          new THREE.MeshStandardMaterial({
-            color: isLight ? 0x3d4454 : 0x343a48,
-            roughness: 0.85,
-          }),
-        );
-        tile.rotation.x = -Math.PI / 2;
-        tile.position.set(
-          x * this.tileSize - half + this.tileSize / 2,
-          0.01,
-          z * this.tileSize - half + this.tileSize / 2,
-        );
-        tile.userData = { tileX: x, tileY: z, kind: "tile", baseColor: isLight ? 0x3d4454 : 0x343a48 };
-        tile.receiveShadow = true;
-        this.tileMeshes.push(tile);
-        scene.add(tile);
+        const baseColor = isLight ? 0x3d4454 : 0x343a48;
+        this.addFloorTile(scene, x, z, baseColor);
       }
     }
+  }
+
+  private buildBattleMapTiles(scene: THREE.Scene, battleMap: ResolvedBattleMap): void {
+    for (const tile of battleMap.tiles) {
+      const fill = cssHex(tile.style.fill, 0x3d4454);
+
+      if (!tile.style.blocked) {
+        this.addFloorTile(scene, tile.x, tile.y, fill);
+        continue;
+      }
+
+      const raised = tile.style.raised ?? 0;
+      if (raised > 0) {
+        // wall / prop: extruded block, not pickable as floor
+        const prop = new THREE.Mesh(
+          new THREE.BoxGeometry(this.tileSize * 0.98, raised, this.tileSize * 0.98),
+          new THREE.MeshStandardMaterial({ color: fill, roughness: 0.9 }),
+        );
+        this.positionAt(prop, tile.x, tile.y, raised / 2);
+        prop.castShadow = true;
+        prop.receiveShadow = true;
+        prop.userData = { kind: "prop" };
+        this.propMeshes.push(prop);
+        scene.add(prop);
+      } else {
+        // flat impassable terrain (water, chasm): recessed plane, not pickable
+        const accent = tile.style.accent ? cssHex(tile.style.accent, fill) : null;
+        const material = new THREE.MeshStandardMaterial({
+          color: fill,
+          roughness: 0.55,
+          ...(accent !== null
+            ? { emissive: accent, emissiveIntensity: 0.18 }
+            : {}),
+        });
+        const plane = new THREE.Mesh(
+          new THREE.PlaneGeometry(this.tileSize, this.tileSize),
+          material,
+        );
+        plane.rotation.x = -Math.PI / 2;
+        this.positionAt(plane, tile.x, tile.y, -0.04);
+        plane.userData = { kind: "blocked" };
+        this.propMeshes.push(plane);
+        scene.add(plane);
+      }
+    }
+  }
+
+  private addFloorTile(scene: THREE.Scene, x: number, z: number, baseColor: number): void {
+    const tile = new THREE.Mesh(
+      new THREE.PlaneGeometry(this.tileSize * 0.98, this.tileSize * 0.98),
+      new THREE.MeshStandardMaterial({ color: baseColor, roughness: 0.85 }),
+    );
+    tile.rotation.x = -Math.PI / 2;
+    this.positionAt(tile, x, z, 0.01);
+    tile.userData = { tileX: x, tileY: z, kind: "tile", baseColor };
+    tile.receiveShadow = true;
+    this.tileMeshes.push(tile);
+    scene.add(tile);
+  }
+
+  private positionAt(mesh: THREE.Mesh, tileX: number, tileY: number, y: number): void {
+    const halfW = (this.gridWidth * this.tileSize) / 2;
+    const halfH = (this.gridHeight * this.tileSize) / 2;
+    mesh.position.set(
+      tileX * this.tileSize - halfW + this.tileSize / 2,
+      y,
+      tileY * this.tileSize - halfH + this.tileSize / 2,
+    );
   }
 
   destroy(scene: THREE.Scene): void {
@@ -94,6 +164,13 @@ export class CombatScene {
       (tile.material as THREE.Material).dispose();
     }
     this.tileMeshes.length = 0;
+
+    for (const prop of this.propMeshes) {
+      scene.remove(prop);
+      prop.geometry.dispose();
+      (prop.material as THREE.Material).dispose();
+    }
+    this.propMeshes.length = 0;
 
     for (const visual of this.visuals.values()) {
       scene.remove(visual.mesh);
@@ -319,12 +396,7 @@ export class CombatScene {
   }
 
   private positionMesh(mesh: THREE.Mesh, tileX: number, tileY: number): void {
-    const half = (this.gridSize * this.tileSize) / 2;
-    mesh.position.set(
-      tileX * this.tileSize - half + this.tileSize / 2,
-      0.35,
-      tileY * this.tileSize - half + this.tileSize / 2,
-    );
+    this.positionAt(mesh, tileX, tileY, 0.35);
   }
 
   private applyDownedVisual(visual: VisualEntity): void {
@@ -359,7 +431,6 @@ export class CombatScene {
     const actor = this.rangeHighlightActorId
       ? this.visuals.get(this.rangeHighlightActorId)
       : null;
-    const half = (this.gridSize * this.tileSize) / 2;
 
     for (const tile of this.tileMeshes) {
       const mat = tile.material as THREE.MeshStandardMaterial;
@@ -377,7 +448,5 @@ export class CombatScene {
           : dist >= 1 && dist <= this.rangeHighlightTiles;
       mat.color.setHex(inRange ? 0x4a5a6a : base);
     }
-
-    void half;
   }
 }

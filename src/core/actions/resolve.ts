@@ -6,7 +6,7 @@ import type { Rng } from "../rng";
 import { attackHits } from "../combat/attack";
 import { effectiveAc, isFlanking } from "../combat/flanking";
 import { canTargetAlly, canTargetEnemy, isInRange } from "../combat/range";
-import { isInBounds, isTileOccupied, manhattanDistance } from "../combat/grid";
+import { isInBounds, isTileBlocked, isTileOccupied, manhattanDistance } from "../combat/grid";
 import { damageSpellDef, healSpellDef } from "../characters/subset";
 
 export interface ResolveResult {
@@ -66,6 +66,9 @@ function resolveStep(
     return { effects: [] };
   }
   if (!isInBounds(state, action.x, action.y)) {
+    return { effects: [] };
+  }
+  if (isTileBlocked(state, action.x, action.y)) {
     return { effects: [] };
   }
   if (isTileOccupied(state, action.x, action.y, action.actorId)) {
