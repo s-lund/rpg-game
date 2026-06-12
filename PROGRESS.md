@@ -2,8 +2,8 @@
 
 Build progress for EMBERWATCH. Milestone definitions live in `ROADMAP.md`.
 
-**Current milestone:** M11 — Phase A (premium geometry contract) done 2026-06-12; Phase B (standard-model wiring/content/renderer) pending, prompt in `NEXT_SESSION.md`. Gate 2 still open — nothing is visible in-game yet by design.  
-**Last updated:** 2026-06-12 — M11 Phase A committed (LoS/cover geometry contract, 246 tests)
+**Current milestone:** M12 (not started — M11 accepted). M12 runs as two sessions like M11: Phase A premium scoring framework + behavior contracts (+ RAW AoO trigger closure), Phase B standard-model archetype profiles — session prompts in `NEXT_SESSION.md`. Clarifications resolved 2026-06-12 under M12 in `ROADMAP.md`.  
+**Last updated:** 2026-06-12 — M11 gate 2 accepted (line of sight, cover + friendly fire)
 
 ---
 
@@ -22,7 +22,7 @@ Build progress for EMBERWATCH. Milestone definitions live in `ROADMAP.md`.
 | M8 Map presentation + content packs | **done** | pass | accepted |
 | M9 Combat rules depth | **done** | pass | accepted |
 | M10 Initiative, reactions + conditions | **done** | pass | accepted |
-| M11 Line of sight, cover + friendly fire | pending | — | — |
+| M11 Line of sight, cover + friendly fire | **done** | pass | accepted |
 | M12 Smart tactical AI | pending | — | — |
 | M13 Strategic pressure + win/lose | pending | — | — |
 | M14 Equipment, inventory, loot + economy | pending | — | — |
@@ -154,3 +154,17 @@ Build progress for EMBERWATCH. Milestone definitions live in `ROADMAP.md`.
 **Gate 1:** `npm run test` (218 tests) — new frozen `tests/contract/initiative.test.ts`, `reactions.test.ts`, `conditions.test.ts`; all earlier frozen contract tests unchanged. `npm run build` clean. *(The 2026-06-11 handoff note recorded "231 tests" — that was a miscount; 218 is consistent: M9's 193 + 24 new contract + 1 net unit.)*
 
 **Gate 2:** accepted 2026-06-12 — playtested; initiative interleave, universal AoO, and the condition set all looked good.
+
+---
+
+## M11 — done (2026-06-12; gate 2 accepted 2026-06-12)
+
+Built as two sessions: **Phase A** (premium model, commit `0399715`) froze the geometry contract; **Phase B** (standard model, commit `d495164`) wired it through resolver, AI, inspector, and renderer.
+
+**Delivered (Phase A):** Vendored SRD (`rules/srd/cover.md`, `line-of-effect.md`, `m11-subset.json`; Archives of Nethys, not memory; the corner-sampling derivation is flagged where it replaces RAW GM adjudication). Pure-core geometry (`src/core/combat/los.ts`): line of effect by corner-occlusion sampling (attacker's best corner vs the target tile's four corners — all rays blocked = untargetable, some = standard cover +2, none = open; walls hair-expanded so sealed diagonal corners and tangent rays block; sampling corners inset so wall-hugging rays block while corridor shots stay clear); cover evaluation with tier + source (blocked / half-wall-partial / half-prop / lesser-creature / none); AC and Reflex-vs-area bonus helpers reading `m11-subset.json`; M9 cone template clipped by line of effect; tileset `raised`-height → wall/prop derivation (threshold 0.7). `MapGrid.cover` optional field — legacy maps/saves keep blocked-as-wall. Frozen `tests/contract/los-cover.test.ts` (28 table-driven tests over ASCII grids).
+
+**Delivered (Phase B):** Per-tile cover flows `ResolvedBattleMap.cover` → `InitialStateConfig.coverTiles` → `MapGrid.cover`. Resolver: Strike (melee included) and Ray of Frost reject blocked targets and add cover AC (`coverAcBonus` on `AttackResolution`); Heal requires line of effect; Breathe Fire uses the clipped cone and adds Reflex-vs-area cover to saves (`coverBonus` on `SaveResolution`) — closes `m9_cone_line_of_effect`. Inspector shares the same `evaluateCover` math (tier/source/label lines). Greedy enemy AI never shoots without line of effect. Pack validator: `raised > 0` requires `blocked`. Renderer: no reticle on blocked targets, clipped cone preview, inspector + combat-log cover lines, `m11_los_cover` overlay flag, M11 banner. New `tests/contract/cover-resolution.test.ts`; all frozen suites untouched.
+
+**Gate 1:** `npm run test` (258 tests, 47 files) — frozen `los-cover.test.ts` + new `cover-resolution.test.ts`; all earlier frozen contract tests unchanged. `npm run build` clean.
+
+**Gate 2:** accepted 2026-06-12 — playtested; prop/creature cover, cone clipping, and blocked-target UX showed well. **Caveat / WATCH ITEM:** the shipped battle maps rarely put freestanding walls between spawns and firing lines, so corner-aware *wall* cover was hard to exercise in play — accepted on the frozen geometry contract; stage wall-cover sightlines when battle-map variety grows (recorded under M11 in `ROADMAP.md`, M17 at the latest).

@@ -1,131 +1,122 @@
 # Next session prompt (copy into a new chat)
 
-M11 Phase A (premium — LoS/cover geometry contract) is **DONE**, committed 2026-06-12. The geometry contract is frozen in `tests/contract/los-cover.test.ts`. This file is now the **PHASE B** prompt: wiring, content, and renderer work for a **standard model**. Nothing from Phase A may be reworked — build against it.
+M11 is DONE and human-accepted (2026-06-12, commits `0399715` Phase A + `d495164` Phase B). M12 is split into **two sessions** like M11: Phase A (premium model — utility-scoring framework, behavior contracts, RAW AoO trigger closure) and Phase B (standard model — archetype profiles, content, renderer). Run Phase A first; it ends by rewriting this file into the concrete Phase B handoff. Do not run Phase B until this file says PHASE B.
 
-## PHASE B — standard model (wiring, content, renderer)
+## PHASE A — premium model (AI framework + behavior contracts + RAW reactions)
 
 ```
 Continue EMBERWATCH development. Read AGENTS.md, ARCHITECTURE.md, ROADMAP.md, and PROGRESS.md first.
 
-State: M0–M10 are DONE and human-accepted. M11 Phase A is DONE and committed: the pure-core LoS/cover geometry module (src/core/combat/los.ts), vendored SRD (rules/srd/cover.md, rules/srd/line-of-effect.md, rules/srd/m11-subset.json — subset.ts now exports M11_SUBSET), MapGrid.cover field, and the frozen contract suite tests/contract/los-cover.test.ts (28 tests). This is M11 PHASE B: wire the frozen geometry into resolver, content, AI, and renderer. Do NOT modify src/core/combat/los.ts or anything in tests/contract/ — if the geometry seems wrong, STOP and flag it.
+State: M0–M11 are DONE and human-accepted. This is M12 PHASE A: the pure-core utility-scoring AI framework, its frozen behavior contracts, and the RAW Reactive Strike trigger closure ONLY — no archetype personality profiles, no content tuning, no renderer work beyond nothing. Phase B (standard model) authors the per-archetype profiles from the handoff you will write.
 
-STEP 0 — Baseline. npm run test (expect 246 green across 46 files) and npm run build (clean) before changing anything. Node 24 is on PATH on this machine (big10).
+M12 decisions are RESOLVED (2026-06-12, recorded under M12 in ROADMAP.md — do NOT re-ask):
+  (a) Band: PUNISHING, uniform — play to win. No authored signature weaknesses, no per-encounter
+      difficulty tags (difficulty knobs are M20, escalation is M13).
+  (b) Future-proofing is an architecture REQUIREMENT, not advice: the rules will keep changing under
+      the AI (new spells in M17, weapon swaps in M14, and possibly a movement-economy change — more
+      tiles per AP, or movement decoupled from actions). Candidate actions must be enumerated
+      generically against the core's own legality/cost rules (resolve's checks, findStepPath, range,
+      slots, conditions) — NEVER a hand-maintained "strike or step" list. One generator + one scorer
+      module per action family, registered in exactly one place; adding a future action kind must mean
+      adding one module, not editing the engine. No hardcoded 3-AP or 1-tile-per-AP assumptions in any
+      AI code — read costs from core.
+  (c) Full map knowledge — but ALL target enumeration flows through a single perceivableTargets(state,
+      actorId) seam, so future stealth skills / concealment magic (M16/M17) can filter it without an
+      AI rewrite. Today it returns all living opposing entities.
+  (d) Close m10_aoo_trigger_subset at FULL RAW, symmetric (heroes provoke too, per the M10 universal-
+      AoO house rule): Reactive Strike triggers on (1) leaving reach during a move — already shipped;
+      (2) ranged attacks made while in reach; (3) manipulate actions in reach — our three spells
+      (Ray of Frost, Heal, Breathe Fire) all carry the manipulate trait per their vendored SRD pages,
+      so casting in reach provokes; (4) move actions in reach (Stand provokes; Step is explicitly
+      exempt per RAW). Crit hits DISRUPT manipulate actions per RAW: the cast is lost (AP and spell
+      slot still spent), the reaction Strike resolves first. Skill/feat mitigation ("battle casting")
+      is deliberately M15 — do not build it.
 
-THE FROZEN PHASE A API (src/core/combat/los.ts, all re-exported from src/core/index):
+STEP 0 — Baseline. npm run test (expect 258 green across 47 files) and npm run build (clean) before
+changing anything. Node 24 is on PATH on this machine (big10).
 
-  type TileCoverKind = "open" | "raised" | "wall";
-  type CoverTier = "none" | "lesser" | "standard" | "blocked";
-  type CoverSource = "none" | "lesser-creature" | "half-prop" | "half-wall-partial" | "blocked";
-  interface CoverResult { tier: CoverTier; source: CoverSource; acBonus: number; lineOfEffect: boolean; }
+STEP 1 — Vendor SRD deltas under rules/srd/ BEFORE implementing (Archives of Nethys, never memory):
+  - step.md: the Step action, especially its "doesn't trigger reactions" clause (the exact sentence).
+  - Verify/extend spell-ray-of-frost.md and spell-heal.md to record their trait lines (manipulate is
+    the load-bearing one); spell-breathe-fire.md already lists its traits.
+  - reactive-strike.md already vendors the full RAW trigger + disruption text — extend its "M10
+    scope" section into an "M12 scope" section: trigger subset closed, crit-disruption now modeled,
+    availability house rule unchanged.
+  - Create rules/srd/m12-subset.json extending m11-subset.json (bump version, keep all M11 values
+    identical — subset.ts alias pattern). Update houseRules.reactiveStrike.triggers to the full RAW
+    list and drop the M10 subset note; add spell trait arrays under spells.* so the manipulate check
+    is data, not code.
 
-  const WALL_RAISED_THRESHOLD: number;   // 0.7 — tileset `raised` >= this is a wall, below (>0) is a prop
-  function coverKindFromTileStyle(blocked: boolean | undefined, raised: number | undefined): TileCoverKind;
-  function tileCoverKind(map: MapGrid, x: number, y: number): TileCoverKind;
-  function hasLineOfEffect(map: MapGrid, from: Tile, to: Tile): boolean;          // symmetric; only walls block
-  function evaluateCover(map: MapGrid, attacker: Tile, target: Tile, occupied?: readonly Tile[]): CoverResult;
-  function coverAcBonus(tier: CoverTier): number;            // none 0, lesser +1, standard +2, blocked 0
-  function coverReflexVsAreaBonus(tier: CoverTier): number;  // standard +2, everything else 0
-  function clipTilesByLineOfEffect(map: MapGrid, origin: Tile, tiles: Tile[]): Tile[];
-  function coneTilesWithLineOfEffect(map: MapGrid, originX, originY, targetX, targetY, length): Tile[];
+STEP 2 — RAW reaction triggers in core (closes m10_aoo_trigger_subset). Find the M10 reaction
+machinery (search reactionAvailable / SpendReaction in src/core/actions/resolve.ts and
+src/core/effects/). Add the three new triggers; reaction resolution stays the M10 pattern (normal
+pipeline effects, auto-resolved, once per round). Disruption: when the reaction Strike crits a
+manipulate-trait cast, the cast's spell effects are dropped — AP spend and slot spend still happen
+(RAW: the action is lost), and the disruption is visible in the event payload for the combat log.
+Ordering: the reaction resolves BEFORE the triggering action's effects. Contract tests (NEW files in
+tests/contract/, e.g. reactions-raw.test.ts): shooting in reach provokes (both directions); casting
+each spell in reach provokes; Stand provokes; Step never provokes; a non-crit reaction does not stop
+the cast; a crit reaction disrupts the cast (slot spent, no damage/heal events); downed-by-reaction
+caster never casts; one reaction per round still holds. Replay must reconstruct identical state.
 
-  Semantics you must respect:
-  - MapGrid.cover (new optional field on src/core/types.ts) is authoritative when present: entries are
-    { x, y, kind: "wall" | "raised" }; flat hazards (water/chasm) are OMITTED (impassable, no cover).
-    When absent (legacy maps / old saves), every MapGrid.blocked tile is treated as a wall. Don't "fix" old saves.
-  - tier "blocked" means NO line of effect: the target cannot be targeted at all. coverAcBonus returns 0
-    for it — the resolver must refuse the action, never resolve it at +0.
-  - evaluateCover's `occupied` is the tiles of all standing (non-downed) creatures; entries on the attacker's
-    or target's own tile are ignored automatically, so pass everyone.
-  - coneTilesWithLineOfEffect does NOT bounds-filter (same contract as coneTiles) — keep the existing
-    bounds handling where the cone is consumed.
-  - Wall cover is corner-sampled and angle-dependent by design (sidestep opens the angle). Props and
-    creatures never block targeting; they only grant cover. See rules/srd/cover.md.
+STEP 3 — AI scoring framework (THE premium work), pure core in src/core/ai/:
+  - chooseEnemyAction(state, actorId) keeps its exact signature (renderer/session wiring untouched)
+    but becomes: enumerate → score → pick.
+  - Candidate generators per action family (strike, cast, move/step, stand, end-turn), each deriving
+    legality and cost from the SAME core functions the resolver uses — never duplicated rules. Movement
+    candidates come from findStepPath-reachable tiles within current AP.
+  - Scorers predict expected value with the SAME pure helpers the inspector uses (estimateHitPercent,
+    damageBand, estimateSavePercent, evaluateCover, coverAcBonus) — the M9/M11 shared-math pattern.
+    Score components the punishing band needs: expected damage now, kill-securing (finishing a target
+    outweighs spreading damage), focus on lowest effective HP through the perceivableTargets seam,
+    cover sought when ending the turn in enemy ranged sightlines, AoO economy (provoking is a cost:
+    Step-then-shoot beats shoot-in-reach when both are legal; baiting an already-spent reaction is
+    free), flanking positioning for melee.
+  - Deterministic: pure function of state, stable tie-breaking (document the order), NO RNG — replay
+    needs no AI events, an AI-vs-AI fight replays identically from the event log.
+  - Profile parameter schema (weights/toggles per scorer) defined and threaded now, with one shipped
+    "baseline" profile = the punishing default; Phase B authors per-archetype profiles as DATA against
+    this schema. Entities/encounters reference profiles by id (content wiring is Phase B).
+  - Scenario-test harness: headless scripted boards (reuse the ASCII-grid helper pattern from
+    tests/contract/los-cover.test.ts) asserting behavior PROPERTIES, frozen in tests/contract/
+    (e.g. ai-behavior.test.ts): never targets without line of effect; steps out of reach before
+    shooting when AP allows; finishes a kill over spreading damage; focuses lowest effective HP;
+    moves toward unreachable targets instead of idling; prefers a cover tile over an open tile when
+    both reach the same shot; never assumes more AP than the entity has (test with a slowed entity).
 
-STEP 1 — Flow per-tile cover data from packs into combat (core, no new authoring):
-  a. ResolvedBattleMap (src/core/pack/battle-map.ts) gains `cover: { x; y; kind: "wall" | "raised" }[]`,
-     derived in resolveBattleMap via coverKindFromTileStyle(style.blocked, style.raised) — only push
-     non-"open" kinds.
-  b. InitialStateConfig (src/core/types.ts) gains `coverTiles?` alongside blockedTiles; createInitialState
-     (src/core/state.ts, where map.blocked is built) copies it into map.cover the same way.
-  c. buildPackEncounter (src/core/pack/encounter.ts) passes coverTiles: battleMap.cover. Non-pack
-     (legacy/demo) encounters pass nothing — the legacy blocked-as-wall fallback covers them.
-  d. Pack validator (src/core/pack/validate.ts): add the invariant that a tileset kind with raised > 0 must
-     also be blocked (walkable cover tiles don't exist in M11). All shipped tilesets already satisfy it.
-  e. Unit tests (tests/unit/, NOT contract): resolveBattleMap derives wall for raised 0.9 walls, raised for
-     0.45 carts, omits water; cover survives createInitialState into state.map.
+STEP 4 — Phase A gate: full suite green (all frozen contract tests untouched), build clean. The HP
+cushion (m10_hp_cushion) STAYS — punishing AI lands before M15 leveling, the cushion is what keeps
+it survivable.
 
-STEP 2 — Resolver wiring (src/core/actions/resolve.ts; cover math via the los.ts helpers ONLY):
-  a. Build `occupied` from standing entities once per resolution: Object.values(state.entities)
-     .filter(e => !e.downed).map(e => ({ x: e.x, y: e.y })).
-  b. Strike (ranged AND melee, ~line 373) and CastSpell / Ray of Frost (~line 517): reject the action when
-     evaluateCover(...).lineOfEffect is false (same no-op pattern as out-of-range); otherwise add
-     result.acBonus to the target's effective AC for the attack roll. Keep using the SAME rolled-attack
-     helper (combat/attack.ts) the inspector estimates from — pass the cover bonus in, don't fork the math.
-  c. CastHeal: targeting an ally also requires hasLineOfEffect (RAW); no AC involved.
-  d. CastConeSpell / Breathe Fire: replace the coneTiles call with coneTilesWithLineOfEffect (this closes
-     m9_cone_line_of_effect — the cone stops at walls); for each creature still in the template, add
-     coverReflexVsAreaBonus(evaluateCover(casterTile, creatureTile, occupied).tier) to its Reflex save total.
-  e. Reactive Strike is melee-adjacent — leave it alone (m10_aoo_trigger_subset stays deferred to M12).
-  f. Contract tests for the new behavior go in tests/contract/ as NEW files (e.g. cover-resolution.test.ts):
-     blocked target → action rejected, no events; cover AC changes a hit to a miss at a pinned seed;
-     cone-behind-wall → no save event, no damage event for the sheltered creature; cart cover → +2 on the
-     Reflex save total visible in the save event payload. Never touch existing files in tests/contract/.
-
-STEP 3 — Inspector (src/core/combat/inspect.ts): inspectTarget must compute cover via the SAME
-  evaluateCover/coverAcBonus calls and fold it into the displayed hit% and AC (M9 shared-math pattern —
-  inspector and resolver share one code path). Expose tier + source so the renderer can print
-  "Half cover (wall corner): +2 AC" / "Lesser cover (ally in the line): +1 AC" / "No line of effect".
-  Update tests/unit/combat-inspect.test.ts accordingly (it is a unit test, not contract).
-
-STEP 4 — Enemy AI (src/core/ai/enemy-turn.ts): the greedy policy gains exactly one new rule — never
-  pick a ranged strike/spell against a target with no line of effect (evaluateCover lineOfEffect false).
-  If nothing is shootable, fall back to the existing move/step behavior (walking closer is fine). Smart
-  cover play is M12 — do not add scoring.
-
-STEP 5 — Renderer (src/renderer/): all read-only consumers of core state/events:
-  a. Targeting UX: no reticle / disabled target highlight on entities with no line of effect (mode-aware:
-     bow, Ray of Frost, Heal, Breathe Fire target tiles); the Breathe Fire cone PREVIEW must render the
-     clipped template (call coneTilesWithLineOfEffect — never the raw template).
-  b. Hover inspector: one cover line from STEP 3's tier + source (and "No line of effect — cannot target"
-     when blocked).
-  c. Combat log (src/core/narrator/combat-log.ts): cover on attack lines ("… vs AC 16 +2 cover = 18") and
-     Reflex-vs-area lines ("… Reflex 14 +2 cover vs DC 17"); a line when a shot is refused for no line of
-     effect is NOT needed (refused actions emit no events).
-  d. Dev overlay (src/renderer/main.ts ScenePresence registrations): REMOVE the m9_cone_line_of_effect
-     PROCEDURAL flag (it is closed); ADD m11_los_cover ("M11 line of effect + corner-sampled cover from
-     rules/srd/cover.md, line-of-effect.md, m11-subset.json"). Update the console banner to M11.
-  e. No new art is expected (cover uses existing wall/prop tiles). If you do add placeholder art anyway,
-     flag it in the overlay and append a row to ASSETS_NEEDED.md per the standing rule.
-
-STEP 6 — Playtest content check: the gate-2 script needs (1) a wall to get a shot blocked behind, (2) open
-  ground to sidestep across, (3) a cart/crate/rubble prop a target can stand behind against Breathe Fire.
-  Verify at least one early Emberwatch encounter (e.g. a Drowned Quay map with `cart` tiles) stages all
-  three near spawns; if not, adjust battle-map rows/spawns (content data edit — allowed) so the human can
-  reproduce the stop-signal script in one fight.
-
-STEP 7 — Gate: npm run test green (all frozen contract tests untouched — including los-cover.test.ts),
-  npm run build clean. Then update PROGRESS.md is NOT yours to do (human gate 2) — instead STOP and print:
-
-  "M11 done. Get a shot blocked, watch corner cover open up as you sidestep, and save against Breathe Fire
-  from behind a cart."
-
-  Gate-2 checklist to print for the human (with proof types):
-  - LOOK: a wall blocks bow shots and Ray of Frost — no target reticle without line of effect.
-  - LOOK: sidestep around the corner — the hover inspector walks blocked → half cover (+2 AC) → no cover.
-  - LOOK: shooting past a cart/rubble shows the +2 cover AC in the hover inspector and combat log.
-  - LOOK: an ally in the firing line shows lesser cover (+1 AC) on the enemy; misses never hit the ally.
-  - LOOK: Breathe Fire's cone preview stops at walls; a creature behind the wall is untouched (no save line).
-  - LOOK: a target behind a cart saves against Breathe Fire at +2 (visible in the combat-log save line).
-  - LOOK: enemies no longer shoot through walls (they reposition instead).
-  - OVERLAY: m11_los_cover present; m9_cone_line_of_effect gone.
-  - TEST: npm run test — 246 Phase A baseline + your new contract/unit tests, all green.
+STEP 5 — Write the Phase B handoff: REPLACE this file's contents with a PHASE B prompt for a standard
+model containing: the exact exported framework API (generator/scorer registration, profile schema,
+perceivableTargets seam); the archetype profile briefs as data-authoring tasks (skirmisher: kite to
+cover + shoot the squishiest reachable hero; bruiser: corridor-blocking, body-block chokepoints,
+deliberate AoO zoning; caster: save-targeting debuff opener then damage — needs enemy casters in
+content; wounded: pull back behind cover when below a threshold); content wiring (archetype → profile
+id in both packs); renderer/log/overlay (combat-log line when a cast is disrupted; overlay: remove
+m10_aoo_trigger_subset, add m12_tactical_ai + m12_raw_reactions; M12 console banner); the playtest
+staging requirement (at least one early encounter where each archetype's behavior is readable within
+two turns); the M12 gate-2 checklist with stop signal "M12 done. Lose a fight you'd have won against
+the old AI, and say why the enemy played well."; and the key-architecture list below verbatim. Then
+commit Phase A and STOP — do not author profiles. Phase A stop signal (print this to the human):
+"M12 Phase A done — AI scoring framework + behavior contracts frozen, RAW reactions closed (N tests
+green, build clean). Enemies already play the punishing baseline; per-archetype personality is Phase
+B. SWITCH TO A CHEAPER/STANDARD MODEL for the next session and paste the PHASE B prompt from
+NEXT_SESSION.md."
 
 Key architecture (do not regress):
 - src/core stays pure and headless; renderers are read-only event-log/state consumers; referential integrity by ID.
-- One Effect → one Event; state mutates only via apply(); new effect kinds extend AnyEffect (never the frozen Effect union / ALL_EFFECT_KINDS) and need effectFromEvent replay cases + their own contract tests. (Phase B should need NO new effect kinds — cover/LoS are resolution inputs, not mutations: a blocked shot is a rejected action, a covered shot is a normal Strike/save with adjusted numbers.)
+- One Effect → one Event; state mutates only via apply(); new effect kinds extend AnyEffect (never the frozen Effect union / ALL_EFFECT_KINDS) and need effectFromEvent replay cases + their own contract tests. (Disruption should NOT need a new effect kind — dropping a disrupted cast's effects happens at resolution, before effects exist; verify against the frozen pipeline test.)
+- The AI is a pure function (state) → Action riding the normal pipeline — no privileged mutation, no hidden state, no RNG; replay never needs AI events.
 - Entity.conditions is the frozen M1 bare-id mirror over activeConditions — both maintained ONLY in apply.ts (M10 pattern).
 - Initiative comes from a seed on CombatSession; replay rebuilds the initial state with the same seed — never emit initiative events.
+- Cover/LoS math lives ONLY in src/core/combat/los.ts — AI, resolver, and inspector all call the same helpers (M11 pattern).
 - Never block on missing art: flagged placeholder + ASSETS_NEEDED.md row.
 
-One phase per loop. M11 ends at the gate above — do not start M12.
+One phase per loop. Do not work ahead into Phase B.
 ```
+
+## PHASE B — standard model (archetype profiles, content, renderer)
+
+Written by Phase A in STEP 5. If this section still says only this line, Phase A has not run yet.
