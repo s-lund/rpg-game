@@ -29,9 +29,12 @@ function marshFoe(
     saves: ranged
       ? { fortitude: 2 + tier, reflex: 5 + tier, will: 2 + tier }
       : { fortitude: 4 + tier, reflex: 3 + tier, will: 2 + tier },
+    initiativeModifier: (ranged ? 5 : 3) + tier,
     // Marsh-soaked creatures shrug off cold but burn easily (M9 theming).
     resistances: { cold: 3 },
     weaknesses: { fire: 2 },
+    // Decision 2026-06-11: stalker shots tangle marsh-mire around your legs.
+    ...(ranged ? { onHitCondition: { condition: "slowed" as const, value: 1 } } : {}),
   };
 }
 
@@ -85,8 +88,11 @@ const MIRRORMARSH_ENCOUNTERS: Record<EncounterId, EncounterTemplate> = {
         damageType: "cold",
         damage: { count: 1, sides: 8, modifier: 2 },
         saves: { fortitude: 7, reflex: 5, will: 7 },
+        initiativeModifier: 6,
         resistances: { cold: 3 },
         weaknesses: { fire: 2 },
+        // Boss-tier: a wight's touch chills the heart (frightened on hit).
+        onHitCondition: { condition: "frightened", value: 2 },
       },
       marshFoe("ent_vault_stalker_1", "Bog Stalker", 2, 3, 2, true),
     ],

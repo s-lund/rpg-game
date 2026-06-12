@@ -5,7 +5,29 @@ export type ClassId = "fighter" | "rogue" | "wizard" | "cleric";
 
 export type Team = "party" | "enemy";
 
-export type ConditionId = "flat_footed";
+export type ConditionId =
+  | "flat_footed"
+  | "frightened"
+  | "prone"
+  | "stunned"
+  | "slowed"
+  | "persistent_damage";
+
+/**
+ * Full condition record (rules/srd/conditions-m10.md). Entity.conditions stays
+ * the M1-frozen bare-id mirror; this carries the value/type detail. Persistent
+ * damage is keyed by (id, damageType) — different types stack, same type keeps
+ * the higher roll.
+ */
+export interface ActiveCondition {
+  id: ConditionId;
+  /** Frightened / stunned / slowed value. */
+  value?: number;
+  /** Persistent damage type. */
+  damageType?: DamageType;
+  /** Persistent damage dice, rolled anew each tick. */
+  damage?: { count: number; sides: number; modifier: number };
+}
 
 export type DamageType = "slashing" | "piercing" | "cold" | "positive" | "fire";
 
@@ -28,6 +50,8 @@ export interface AttackResolution {
   damageRolls?: number[];
   damageModifier?: number;
   sneakRolls?: number[];
+  /** Set when this strike is a Reactive Strike (AoO) — surfaces the reactor. */
+  reactionBy?: { reactorId: EntityId; reactorLabel: string };
 }
 
 export interface HealResolution {
@@ -96,9 +120,27 @@ export interface Entity {
   /** Prepared spell slots. Absent → leveled spells cast unrestricted (opt-in enforcement). */
   spellSlots?: SpellSlot[];
   conditions: ConditionId[];
+  /** Detail records behind the conditions mirror (rules/srd/conditions-m10.md). */
+  activeConditions: ActiveCondition[];
+  /** One reaction per round, refreshed at the entity's turn start (rules/srd/reactive-strike.md). */
+  reactionAvailable: boolean;
+  /** Content-driven condition this entity's hits inflict (e.g. bruiser slam → prone). */
+  onHitCondition?: {
+    condition: ConditionId;
+    value?: number;
+    damageType?: DamageType;
+    damage?: { count: number; sides: number; modifier: number };
+  };
   actionPoints: number;
   maxActionPoints: number;
   downed: boolean;
+}
+
+/** Recorded initiative roll — stored on initial state so replay needs no events. */
+export interface InitiativeRoll {
+  d20: number;
+  modifier: number;
+  total: number;
 }
 
 export interface CombatMeta {
@@ -106,6 +148,8 @@ export interface CombatMeta {
   round: number;
   activeActorId: EntityId | null;
   turnOrder: EntityId[];
+  /** Initiative rolls behind turnOrder (rules/srd/initiative.md). Absent → legacy fixed order. */
+  initiative?: Record<EntityId, InitiativeRoll>;
 }
 
 export interface MapGrid {
@@ -152,6 +196,9 @@ export interface EntityBlueprint {
   resistances?: Partial<Record<DamageType, number>>;
   weaknesses?: Partial<Record<DamageType, number>>;
   spellSlots?: SpellSlot[];
+  /** Perception-based initiative modifier (rules/srd/initiative.md). Default 0. */
+  initiativeModifier?: number;
+  onHitCondition?: Entity["onHitCondition"];
 }
 
 export interface InitialStateConfig {
@@ -160,4 +207,10 @@ export interface InitialStateConfig {
   party: EntityBlueprint[];
   enemies: EntityBlueprint[];
   blockedTiles?: { x: number; y: number }[];
+  /**
+   * Seeded RNG for initiative. Provided → turnOrder is the rolled initiative
+   * order and the rolls are stored on combat.initiative. Absent → legacy
+   * party-then-enemies order (frozen M1–M9 tests construct states this way).
+   */
+  rng?: import("./rng").Rng;
 }

@@ -1,11 +1,13 @@
 import type {
   AttackResolution,
+  ConditionId,
   DamageAdjustment,
   GameEvent,
   HealResolution,
   SaveOutcome,
   SaveResolution,
 } from "../types";
+import type { PersistentTick } from "../effects/types";
 import { M9_SUBSET } from "../characters/subset";
 import type { NarrationContext } from "./types";
 
@@ -46,6 +48,28 @@ const SAVE_KIND_LABELS = {
   will: "Will",
 } as const;
 
+export const CONDITION_LABELS: Record<ConditionId, string> = {
+  flat_footed: "flat-footed",
+  frightened: "frightened",
+  prone: "prone",
+  stunned: "stunned",
+  slowed: "slowed",
+  persistent_damage: "persistent damage",
+};
+
+/** "frightened 2" / "persistent fire damage" — the bit after "X is …". */
+function conditionPhrase(
+  condition: ConditionId,
+  value?: number,
+  damageType?: string,
+): string {
+  if (condition === "persistent_damage") {
+    return damageType ? `taking persistent ${damageType} damage` : "taking persistent damage";
+  }
+  const base = CONDITION_LABELS[condition] ?? condition;
+  return value !== undefined ? `${base} ${value}` : base;
+}
+
 function formatSaveResolution(event: GameEvent, ctx: NarrationContext): string[] {
   const res = event.payload.save_resolution as SaveResolution;
   const target = label(ctx, String(event.payload.target_id));
@@ -68,7 +92,10 @@ function formatSaveResolution(event: GameEvent, ctx: NarrationContext): string[]
 
 function formatAttackResolution(event: GameEvent, ctx: NarrationContext): string[] {
   const res = event.payload.attack_resolution as AttackResolution;
-  const actor = label(ctx, event.actorId);
+  // An AoO's event actor is the MOVER who provoked — name the reactor instead.
+  const actor = res.reactionBy
+    ? (ctx.entityLabels[res.reactionBy.reactorId] ?? res.reactionBy.reactorLabel)
+    : label(ctx, event.actorId);
   const target = label(ctx, String(event.payload.target_id));
   const lines: string[] = [];
 
@@ -136,14 +163,63 @@ export function formatCombatLogBatch(events: GameEvent[], ctx: NarrationContext)
         break;
       }
       case "ConditionApplied": {
-        if (event.payload.condition === "flat_footed") {
-          const target = label(ctx, String(event.payload.target_id));
+        const target = label(ctx, String(event.payload.target_id));
+        const condition = event.payload.condition as ConditionId;
+        if (condition === "flat_footed") {
           lines.push(`  ${target} is flat-footed (flanked).`);
+        } else {
+          const phrase = conditionPhrase(
+            condition,
+            event.payload.value as number | undefined,
+            event.payload.damage_type as string | undefined,
+          );
+          lines.push(`  ${target} is ${phrase}!`);
         }
         break;
       }
+      case "ConditionTicked": {
+        const target = label(ctx, String(event.payload.target_id));
+        const condition = event.payload.condition as ConditionId;
+        const valueAfter = event.payload.value_after as number;
+        const name = CONDITION_LABELS[condition] ?? condition;
+        if (valueAfter > 0) {
+          lines.push(`  ${target}: ${name} drops to ${valueAfter}`);
+        } else {
+          lines.push(`  ${target} is no longer ${name}`);
+        }
+        break;
+      }
+      case "ConditionRemoved": {
+        const target = label(ctx, String(event.payload.target_id));
+        const condition = event.payload.condition as ConditionId;
+        if (condition === "persistent_damage") {
+          const dtype = event.payload.damage_type as string | undefined;
+          lines.push(`  ${target} recovers from persistent ${dtype ?? ""} damage`.trimEnd());
+        } else if (condition === "prone") {
+          lines.push(`  ${target} stands up`);
+        } else if (condition !== "flat_footed") {
+          lines.push(`  ${target} is no longer ${CONDITION_LABELS[condition] ?? condition}`);
+        }
+        break;
+      }
+      case "ReactionSpent": {
+        const who = label(ctx, String(event.payload.entity_id));
+        lines.push(`${who}'s reaction — Attack of Opportunity:`);
+        break;
+      }
       case "DamageDealt": {
-        if (event.payload.attack_resolution) {
+        if (event.payload.persistent_tick) {
+          const tick = event.payload.persistent_tick as PersistentTick;
+          const target = label(ctx, String(event.payload.target_id));
+          const amount = event.payload.amount as number;
+          const hpAfter = event.payload.hp_after as number;
+          lines.push(
+            `${target} takes ${amount} persistent ${tick.damageType} damage${adjustmentNote(event)} (${hpAfter} HP left)`,
+          );
+          lines.push(
+            `  flat check d20(${tick.flatCheckRoll}) vs DC ${tick.flatCheckDc} — ${tick.recovered ? "recovers!" : "it persists"}`,
+          );
+        } else if (event.payload.attack_resolution) {
           lines.push(...formatAttackResolution(event, ctx));
         } else if (event.payload.save_resolution) {
           lines.push(...formatSaveResolution(event, ctx));

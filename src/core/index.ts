@@ -12,12 +12,19 @@ export type {
   TilesetId,
 } from "../shared/ids";
 
-export const CORE_VERSION = "0.1.0-m9";
+export const CORE_VERSION = "0.1.0-m10";
 
 export type { Action } from "./actions/types";
 export { resolveAction, postActionEffects } from "./actions/resolve";
 
-export type { Effect, AnyEffect, SpellSlotEffect } from "./effects/types";
+export type {
+  Effect,
+  AnyEffect,
+  SpellSlotEffect,
+  TickConditionEffect,
+  SpendReactionEffect,
+  PersistentTick,
+} from "./effects/types";
 export { ALL_EFFECT_KINDS } from "./effects/types";
 export { apply, applyAll } from "./effects/apply";
 export type { ApplyContext, ApplyResult } from "./effects/apply";
@@ -189,6 +196,19 @@ export { tileDistance, isInRange, canTargetEnemy, canTargetAlly } from "./combat
 export { inspectTarget, type TargetInspection, type InspectActionKind } from "./combat/inspect";
 export { attackHits, estimateHitPercent, damageBand } from "./combat/attack";
 export { degreeOfSuccess, basicSaveDamage, rollSave, estimateSavePercent } from "./combat/save";
+export {
+  PERSISTENT_DAMAGE_FLAT_CHECK_DC,
+  conditionValue,
+  hasCondition,
+  persistentDamageEntries,
+  attackRollPenalty,
+  acPenalty,
+  savePenalty,
+  dcPenalty,
+  canMove,
+  turnStartActions,
+  type TurnStartActions,
+} from "./combat/conditions";
 export { adjustDamage, adjustedAmount } from "./combat/damage";
 export { coneTiles, coneDirection, isTileInCone } from "./combat/cone";
 export { findStepPath } from "./combat/path";
@@ -204,6 +224,8 @@ export type {
   EntityBlueprint,
   CombatMeta,
   ConditionId,
+  ActiveCondition,
+  InitiativeRoll,
   ClassId,
   InitialStateConfig,
   AttackResolution,

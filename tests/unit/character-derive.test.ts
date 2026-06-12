@@ -5,15 +5,32 @@ import { createDefaultParty } from "../../src/core/characters/validate";
 import { M7_SUBSET } from "../../src/core/characters/subset";
 
 describe("character derive", () => {
-  it("derives fighter HP from class HP + CON mod (rules/srd/classes-fighter.md)", () => {
+  it("derives fighter HP from class HP + CON mod + M10 playtest cushion", () => {
     const fighter = createDefaultParty().members.find((m) => m.classId === "fighter")!;
     const blueprint = deriveEntityBlueprint(fighter, { x: 2, y: 5 });
     const conMod = abilityModifier(fighter.abilities.con);
-    expect(blueprint.maxHp).toBe(M7_SUBSET.fixedAncestry.hpBonus + M7_SUBSET.classes.fighter.hpPerLevel + conMod);
+    const cushion = M7_SUBSET.houseRules.playtestHpCushion.heroBonusHp;
+    expect(blueprint.maxHp).toBe(
+      M7_SUBSET.fixedAncestry.hpBonus + M7_SUBSET.classes.fighter.hpPerLevel + conMod + cushion,
+    );
     expect(blueprint.strikeRange).toBe(6);
     expect(blueprint.damageType).toBe("piercing");
     expect(blueprint.classId).toBe("fighter");
     expect(blueprint.label).toBe("Fighter");
+  });
+
+  it("derives initiative from Perception proficiency + WIS mod (rules/srd/initiative.md)", () => {
+    const party = createDefaultParty();
+    const fighter = party.members.find((m) => m.classId === "fighter")!;
+    const wizard = party.members.find((m) => m.classId === "wizard")!;
+    const fighterBp = deriveEntityBlueprint(fighter, { x: 0, y: 0 });
+    const wizardBp = deriveEntityBlueprint(wizard, { x: 1, y: 0 });
+    expect(fighterBp.initiativeModifier).toBe(
+      M7_SUBSET.level + M7_SUBSET.proficiencyBonus.expert + abilityModifier(fighter.abilities.wis),
+    );
+    expect(wizardBp.initiativeModifier).toBe(
+      M7_SUBSET.level + M7_SUBSET.proficiencyBonus.trained + abilityModifier(wizard.abilities.wis),
+    );
   });
 
   it("derives rogue attack from trained proficiency + DEX mod", () => {

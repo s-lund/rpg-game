@@ -2,8 +2,8 @@
 
 Build progress for EMBERWATCH. Milestone definitions live in `ROADMAP.md`.
 
-**Current milestone:** M10 (not started — M9 accepted)  
-**Last updated:** 2026-06-11 — M9 gate 2 accepted (saves, resistance/weakness, spell slots, path-aware Step)
+**Current milestone:** M11 (not started — M10 accepted)  
+**Last updated:** 2026-06-12 — M10 gate 2 accepted (initiative, reactions + conditions)
 
 ---
 
@@ -21,7 +21,7 @@ Build progress for EMBERWATCH. Milestone definitions live in `ROADMAP.md`.
 | M7 Breadth + ranged combat | **done** | pass | accepted |
 | M8 Map presentation + content packs | **done** | pass | accepted |
 | M9 Combat rules depth | **done** | pass | accepted |
-| M10 Initiative, reactions + conditions | pending | — | — |
+| M10 Initiative, reactions + conditions | **done** | pass | accepted |
 | M11 Line of sight, cover + friendly fire | pending | — | — |
 | M12 Smart tactical AI | pending | — | — |
 | M13 Strategic pressure + win/lose | pending | — | — |
@@ -144,3 +144,13 @@ Build progress for EMBERWATCH. Milestone definitions live in `ROADMAP.md`.
 **Known simplifications (flagged in overlay):** Breathe Fire's cone ignores walls (line of sight/effect is M11, `m9_cone_line_of_effect`); safe-haven slot recovery is the interim stand-in for M19 rest (`m9_slot_recovery`).
 
 **Gate 2:** accepted 2026-06-11 — playtested; saves, resistance/weakness, slot economy, and path-aware movement all looked good after the Move-mode fix.
+
+---
+
+## M10 — done (2026-06-11; gate 2 accepted 2026-06-12)
+
+**Delivered:** Vendored SRD (`rules/srd/` — `initiative.md`, `conditions-m10.md`, `reactive-strike.md`, `m10-subset.json`; Archives of Nethys, not memory). Pure-core action economy: rolled Perception initiative — seeded, stored on the **initial state** (not events, since `replayEvents` starts from the caller's initial state; `CombatSession` keeps the seed), enemy wins ties; condition framework (`combat/conditions.ts` — duration, value, expiry) generalized from `flat_footed`, with `Entity.conditions` staying the frozen M1 bare-id mirror over a new `activeConditions` detail list, both maintained only in `apply.ts`; five conditions — **frightened** (value, ticks down), **prone**, **stunned** (loses actions), **slowed**, **persistent damage** (ticks ride normal `Damage` effects, so M9 weakness/resistance applies for free); post-freeze effect kinds `TickCondition` and `SpendReaction` extend `AnyEffect` with their own contract tests; **Reactive Strike as a HOUSE RULE** — every melee-armed combatant threatens (not Fighter-only, declined in favor of XCOM-style zoning both ways), once per round (resets at the entity's turn start), auto-resolved, trigger scoped to leaving the reactor's reach (manipulate/ranged triggers deferred, flagged `m10_aoo_trigger_subset`); per RAW the move is not disrupted — damage resolves and the move completes, except a downed mover stops at the trigger square; **Stand** as a new 1-action combat action (Crawl deferred). Content: enemy on-hit condition riders (`onHitCondition`) as pack data — Quay Bruiser → prone, Cinder Shade → persistent fire 1d4, bosses/Granary Wight → frightened 2, Bog Stalker → slowed 1 — carried by Reactive Strikes too; heroes get a +10 HP playtest cushion (flagged `m10_hp_cushion`, superseded by M15 leveling). Renderer: interleaved initiative order, condition icons on figures, hover-inspector condition lines, combat-log lines for initiative/reactions/condition onset+expiry, overlay flags.
+
+**Gate 1:** `npm run test` (218 tests) — new frozen `tests/contract/initiative.test.ts`, `reactions.test.ts`, `conditions.test.ts`; all earlier frozen contract tests unchanged. `npm run build` clean. *(The 2026-06-11 handoff note recorded "231 tests" — that was a miscount; 218 is consistent: M9's 193 + 24 new contract + 1 net unit.)*
+
+**Gate 2:** accepted 2026-06-12 — playtested; initiative interleave, universal AoO, and the condition set all looked good.

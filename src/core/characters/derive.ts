@@ -17,6 +17,25 @@ import {
 import type { CharacterDraft, PartyDraft } from "./types";
 import type { DamageType, InitialStateConfig, SaveKind, SpellSlot } from "../types";
 
+/**
+ * HOUSE RULE (M10, flagged PROCEDURAL): flat bonus HP so universal AoO +
+ * enemy conditions are playtestable at level 1. Superseded by M15 leveling.
+ */
+function heroBonusHp(): number {
+  return M9_SUBSET.houseRules.playtestHpCushion.heroBonusHp;
+}
+
+/** Perception-based initiative (rules/srd/initiative.md). */
+function deriveInitiativeModifier(
+  rules: ClassRulesBase,
+  abilities: CharacterDraft["abilities"],
+): number {
+  return (
+    proficiencyBonus(rules.perception as ProficiencyRank, M9_SUBSET.level, M9_SUBSET.proficiencyBonus) +
+    abilityModifier(abilities.wis)
+  );
+}
+
 function deriveSaves(
   rules: ClassRulesBase,
   abilities: CharacterDraft["abilities"],
@@ -106,7 +125,7 @@ export function deriveEntityBlueprint(
       spellMod;
     const dexToArmor = Math.min(dexMod, rules.armor.maxDexBonus);
     const ac = 10 + dexToArmor + rules.armor.acBonus + rules.armor.shieldBonus;
-    const maxHp = M9_SUBSET.fixedAncestry.hpBonus + rules.hpPerLevel + conMod;
+    const maxHp = M9_SUBSET.fixedAncestry.hpBonus + rules.hpPerLevel + conMod + heroBonusHp();
 
     return {
       id: draft.id,
@@ -121,6 +140,7 @@ export function deriveEntityBlueprint(
       spellAttackBonus,
       spellDc,
       saves: deriveSaves(rules, draft.abilities),
+      initiativeModifier: deriveInitiativeModifier(rules, draft.abilities),
       damage: { count: 0, sides: 4, modifier: 0 },
       damageType: "cold",
       strikeRange: 0,
@@ -142,7 +162,7 @@ export function deriveEntityBlueprint(
       spellMod;
     const dexToArmor = Math.min(dexMod, rules.armor.maxDexBonus);
     const ac = 10 + dexToArmor + rules.armor.acBonus + rules.armor.shieldBonus;
-    const maxHp = M9_SUBSET.fixedAncestry.hpBonus + rules.hpPerLevel + conMod;
+    const maxHp = M9_SUBSET.fixedAncestry.hpBonus + rules.hpPerLevel + conMod + heroBonusHp();
 
     return {
       id: draft.id,
@@ -157,6 +177,7 @@ export function deriveEntityBlueprint(
       spellAttackBonus: 0,
       spellDc,
       saves: deriveSaves(rules, draft.abilities),
+      initiativeModifier: deriveInitiativeModifier(rules, draft.abilities),
       damage: { count: 0, sides: 8, modifier: 0 },
       damageType: "positive",
       strikeRange: 0,
@@ -180,7 +201,7 @@ export function deriveEntityBlueprint(
 
   const dexToArmor = Math.min(dexMod, classRules.armor.maxDexBonus);
   const ac = 10 + dexToArmor + classRules.armor.acBonus + classRules.armor.shieldBonus;
-  const maxHp = M9_SUBSET.fixedAncestry.hpBonus + classRules.hpPerLevel + conMod;
+  const maxHp = M9_SUBSET.fixedAncestry.hpBonus + classRules.hpPerLevel + conMod + heroBonusHp();
 
   return {
     id: draft.id,
@@ -194,6 +215,7 @@ export function deriveEntityBlueprint(
     attackBonus,
     spellAttackBonus: 0,
     saves: deriveSaves(classRules, draft.abilities),
+    initiativeModifier: deriveInitiativeModifier(classRules, draft.abilities),
     damage: {
       count: classRules.defaultWeapon.damage.count,
       sides: classRules.defaultWeapon.damage.sides,

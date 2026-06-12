@@ -14,3 +14,5 @@ Structured requests for assets not yet available. Fulfill by dropping files and 
 | map_world_emberwatch | png/webp 2000×1500 | top-down painted | optional raster upgrade for the shipped SVG world map (drop in + manifest edit, same site coordinates) |
 | map_emberwatch_quay (+ spire ×3, vaults ×2) | png/webp 2000×1500 | top-down painted | optional raster upgrades for the 6 district/level SVG plans |
 | battle_tile_textures (ts_streets, ts_docks, ts_spire, ts_vaults, ts_marsh) | png 256×256 tileable | top-down | floor/wall textures per tileset; tiles currently flat tileset colors |
+| condition_icons (frightened, prone, stunned, slowed, persistent_fire, flat_footed) | png/svg 24×24 | flat UI | per-condition status icons; HUD currently shows text badges like "frightened 2" |
+| reaction_icon | png/svg 16×16 | flat UI | reaction-ready indicator; HUD currently uses a text ⚡ glyph |

@@ -18,6 +18,10 @@ function cloneEntity(entity: Entity): Entity {
   return {
     ...entity,
     conditions: [...entity.conditions],
+    activeConditions: entity.activeConditions.map((c) => ({
+      ...c,
+      ...(c.damage ? { damage: { ...c.damage } } : {}),
+    })),
     knownSpells: [...entity.knownSpells],
     saves: { ...entity.saves },
     ...(entity.resistances ? { resistances: { ...entity.resistances } } : {}),
@@ -84,6 +88,9 @@ function buildEvent(effect: AnyEffect, state: GameState, ctx: ApplyContext): Gam
       if (effect.damageAdjustment) {
         payload.damage_adjustment = effect.damageAdjustment;
       }
+      if (effect.persistentTick) {
+        payload.persistent_tick = effect.persistentTick;
+      }
       return {
         ...base,
         type: "DamageDealt",
@@ -134,6 +141,9 @@ function buildEvent(effect: AnyEffect, state: GameState, ctx: ApplyContext): Gam
           target_id: effect.targetId,
           condition: effect.condition,
           from_effect: effect.effectId,
+          ...(effect.value !== undefined ? { value: effect.value } : {}),
+          ...(effect.damageType !== undefined ? { damage_type: effect.damageType } : {}),
+          ...(effect.damage !== undefined ? { damage: effect.damage } : {}),
         },
       };
     case "RemoveCondition":
@@ -143,6 +153,32 @@ function buildEvent(effect: AnyEffect, state: GameState, ctx: ApplyContext): Gam
         payload: {
           target_id: effect.targetId,
           condition: effect.condition,
+          from_effect: effect.effectId,
+          ...(effect.damageType !== undefined ? { damage_type: effect.damageType } : {}),
+        },
+      };
+    case "TickCondition": {
+      const target = state.entities[effect.targetId]!;
+      const current = target.activeConditions.find((c) => c.id === effect.condition);
+      const valueAfter = Math.max(0, (current?.value ?? 0) - effect.amount);
+      return {
+        ...base,
+        type: "ConditionTicked",
+        payload: {
+          target_id: effect.targetId,
+          condition: effect.condition,
+          amount: effect.amount,
+          value_after: valueAfter,
+          from_effect: effect.effectId,
+        },
+      };
+    }
+    case "SpendReaction":
+      return {
+        ...base,
+        type: "ReactionSpent",
+        payload: {
+          entity_id: effect.entityId,
           from_effect: effect.effectId,
         },
       };
@@ -189,6 +225,20 @@ function buildEvent(effect: AnyEffect, state: GameState, ctx: ApplyContext): Gam
   }
 }
 
+function avgDamage(damage?: { count: number; sides: number; modifier: number }): number {
+  if (!damage) return 0;
+  return damage.count * ((damage.sides + 1) / 2) + damage.modifier;
+}
+
+/** Entity.conditions is the frozen M1 bare-id view over activeConditions. */
+function syncConditionMirror(entity: Entity): void {
+  const ids: Entity["conditions"] = [];
+  for (const condition of entity.activeConditions) {
+    if (!ids.includes(condition.id)) ids.push(condition.id);
+  }
+  entity.conditions = ids;
+}
+
 function reduce(effect: AnyEffect, draft: GameState): void {
   switch (effect.kind) {
     case "MoveTo": {
@@ -213,14 +263,68 @@ function reduce(effect: AnyEffect, draft: GameState): void {
     }
     case "ApplyCondition": {
       const target = draft.entities[effect.targetId]!;
-      if (!target.conditions.includes(effect.condition)) {
-        target.conditions.push(effect.condition);
+      if (effect.condition === "persistent_damage") {
+        // Different types stack; same type keeps the higher (average) damage.
+        const existing = target.activeConditions.find(
+          (c) => c.id === "persistent_damage" && c.damageType === effect.damageType,
+        );
+        if (existing) {
+          if (avgDamage(effect.damage) > avgDamage(existing.damage)) {
+            existing.damage = effect.damage ? { ...effect.damage } : undefined;
+          }
+        } else {
+          target.activeConditions.push({
+            id: effect.condition,
+            ...(effect.damageType !== undefined ? { damageType: effect.damageType } : {}),
+            ...(effect.damage !== undefined ? { damage: { ...effect.damage } } : {}),
+          });
+        }
+      } else {
+        // Redundant condition: keep the higher value (PF2e), never stack.
+        const existing = target.activeConditions.find((c) => c.id === effect.condition);
+        if (existing) {
+          if ((effect.value ?? 0) > (existing.value ?? 0)) {
+            existing.value = effect.value;
+          }
+        } else {
+          target.activeConditions.push({
+            id: effect.condition,
+            ...(effect.value !== undefined ? { value: effect.value } : {}),
+          });
+        }
       }
+      syncConditionMirror(target);
       break;
     }
     case "RemoveCondition": {
       const target = draft.entities[effect.targetId]!;
-      target.conditions = target.conditions.filter((c) => c !== effect.condition);
+      target.activeConditions = target.activeConditions.filter((c) => {
+        if (c.id !== effect.condition) return true;
+        if (effect.condition === "persistent_damage" && effect.damageType !== undefined) {
+          return c.damageType !== effect.damageType;
+        }
+        return false;
+      });
+      syncConditionMirror(target);
+      break;
+    }
+    case "TickCondition": {
+      const target = draft.entities[effect.targetId]!;
+      const current = target.activeConditions.find((c) => c.id === effect.condition);
+      if (current) {
+        const valueAfter = Math.max(0, (current.value ?? 0) - effect.amount);
+        if (valueAfter > 0) {
+          current.value = valueAfter;
+        } else {
+          target.activeConditions = target.activeConditions.filter((c) => c !== current);
+        }
+        syncConditionMirror(target);
+      }
+      break;
+    }
+    case "SpendReaction": {
+      const entity = draft.entities[effect.entityId]!;
+      entity.reactionAvailable = false;
       break;
     }
     case "SpendSpellSlot": {
@@ -240,6 +344,9 @@ function reduce(effect: AnyEffect, draft: GameState): void {
       draft.combat.activeActorId = effect.entityId;
       const entity = draft.entities[effect.entityId]!;
       entity.actionPoints = entity.maxActionPoints;
+      // Turn start refreshes the reaction (rules/srd/reactive-strike.md); the
+      // stunned/slowed action reduction rides as follow-up effects in EndTurn.
+      entity.reactionAvailable = true;
       break;
     }
     case "EntityDowned": {

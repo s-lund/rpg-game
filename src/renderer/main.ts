@@ -55,6 +55,7 @@ import { CombatScene } from "./combat-scene";
 import {
   actionModeToInspectKind,
   CombatHud,
+  conditionBadges,
   inspectModeForActor,
   type CombatActionMode,
 } from "./combat-hud";
@@ -461,6 +462,36 @@ function buildAcceptanceItems() {
       proof: "test" as const,
       how: "npm run test — save-resolution, resistance-weakness, spell-slots, path-aware-step, cone-template tests",
     },
+    {
+      id: "m10_initiative",
+      label: "Rolled initiative interleaves party and foes",
+      proof: "visual" as const,
+      how: "start any fight — the HUD initiative strip shows the rolled order (totals in parentheses); enemies can act first; order changes between fights",
+    },
+    {
+      id: "m10_reactive_strike",
+      label: "Attack of Opportunity both ways (house rule: all melee)",
+      proof: "visual" as const,
+      how: "stand next to a melee enemy and walk away — the log shows '…'s reaction — Attack of Opportunity'; lure an enemy past your melee Rogue and it provokes hers (⚡ marks ready reactions)",
+    },
+    {
+      id: "m10_conditions",
+      label: "Conditions you can feel: prone, persistent, frightened, slowed, stunned",
+      proof: "visual" as const,
+      how: "Quay Bruiser (Drowned Quay) knocks prone → Stand button; Cinder Shade (Ember Vaults) sets you burning → end-of-turn tick + DC 15 flat check; bosses frighten on hit (−value on rolls/AC, fades each turn); Mirrormarsh Bog Stalkers slow (fewer AP); badges on HUD lines and hover inspector",
+    },
+    {
+      id: "m10_hp_cushion",
+      label: "Playtest HP cushion (house rule)",
+      proof: "overlay" as const,
+      how: "heroes carry +10 max HP so AoO + condition pressure is survivable at L1 — F3/~ lists m10_hp_cushion as PROCEDURAL until M15 leveling",
+    },
+    {
+      id: "m10_contract_tests",
+      label: "M10 initiative/reaction/condition contracts",
+      proof: "test" as const,
+      how: "npm run test — initiative.test.ts, reactions.test.ts, conditions.test.ts ride the frozen pipeline",
+    },
   ];
 }
 
@@ -614,6 +645,30 @@ function init(): void {
   presence.registerProcedural(
     "m9_cone_line_of_effect",
     "Breathe Fire cone ignores walls — line of sight/effect arrives in M11",
+  );
+  presence.registerRendered(
+    "m10_initiative",
+    "M10 rolled Perception initiative (rules/srd/initiative.md) — seeded, replayable, enemy wins ties",
+  );
+  presence.registerRendered(
+    "m10_conditions",
+    "M10 conditions: frightened, prone, stunned, slowed, persistent damage from vendored SRD",
+  );
+  presence.registerRendered(
+    "m10_reactive_strike",
+    "M10 Attack of Opportunity — HOUSE RULE: every melee-armed combatant threatens, once per round",
+  );
+  presence.registerProcedural(
+    "m10_aoo_trigger_subset",
+    "Reactive Strike fires only on leaving reach during a move — manipulate/ranged triggers and crit move-disruption out of M10 scope",
+  );
+  presence.registerProcedural(
+    "m10_hp_cushion",
+    "HOUSE RULE: +10 hero HP playtest cushion (m10-subset.json houseRules) — superseded by M15 leveling",
+  );
+  presence.registerProcedural(
+    "m10_reaction_auto_resolve",
+    "reactions auto-resolve with no player prompt — prompt option deferred to M20 settings",
   );
 
   const devOverlay = new DevOverlay(import.meta.env.DEV);
@@ -1095,7 +1150,13 @@ function init(): void {
       combatHud.hideInspector();
       return;
     }
-    combatHud.showInspector(entity.label, info, event.clientX, event.clientY);
+    combatHud.showInspector(
+      entity.label,
+      info,
+      event.clientX,
+      event.clientY,
+      conditionBadges(entity),
+    );
   }
 
   renderer.domElement.addEventListener("click", handlePointerClick);
@@ -1175,6 +1236,17 @@ function init(): void {
     combatHud.setOnActionModeChange(() => {
       updateRangeHighlight();
       refreshHudAndOverlay();
+    });
+    combatHud.setOnStand(() => {
+      if (!combatSession) return;
+      const current = combatSession.getState();
+      const standerId = current.combat.activeActorId;
+      if (!standerId || current.entities[standerId]?.team !== "party") return;
+      combatSession.dispatch({
+        kind: "Stand",
+        actionId: `act_stand_${Date.now()}`,
+        actorId: standerId,
+      });
     });
 
     combatScene.buildTiles(scene, battleMap ?? null);
@@ -1533,7 +1605,7 @@ function init(): void {
       startCombat,
     };
     console.info(
-      "[EMBERWATCH] M9 — combat rules depth (saves, resistance/weakness, spell slots, path-aware Step); F3/~ overlay",
+      "[EMBERWATCH] M10 — initiative, reactions + conditions (rolled turn order, universal melee AoO house rule, frightened/prone/stunned/slowed/persistent damage); F3/~ overlay",
       { manifestSummary, selectedPackId },
     );
   }

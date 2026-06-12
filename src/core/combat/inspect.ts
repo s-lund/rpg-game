@@ -7,6 +7,7 @@ import { attackHits, damageBand, estimateHitPercent } from "./attack";
 import { adjustedAmount } from "./damage";
 import { estimateSavePercent } from "./save";
 import { isTileInCone } from "./cone";
+import { attackRollPenalty, dcPenalty, savePenalty } from "./conditions";
 import type { DamageType, Entity, GameState, SaveKind } from "../types";
 
 export type InspectActionKind = "strike" | "cast_spell" | "cast_heal" | "cast_cone";
@@ -71,7 +72,7 @@ export function inspectTarget(
     return {
       ...base,
       inRange,
-      hitPercent: estimateHitPercent(attacker.attackBonus, ac),
+      hitPercent: estimateHitPercent(attacker.attackBonus - attackRollPenalty(attacker), ac),
       damageMin: adjustedAmount(target, band.min, attacker.damageType),
       damageMax: adjustedAmount(target, band.max, attacker.damageType),
       ...appliedAdjustments(target, attacker.damageType),
@@ -87,7 +88,7 @@ export function inspectTarget(
     return {
       ...base,
       inRange,
-      hitPercent: estimateHitPercent(attacker.spellAttackBonus, ac),
+      hitPercent: estimateHitPercent(attacker.spellAttackBonus - attackRollPenalty(attacker), ac),
       damageMin: adjustedAmount(target, band.min, damageType),
       damageMax: adjustedAmount(target, band.max, damageType),
       ...appliedAdjustments(target, damageType),
@@ -113,7 +114,10 @@ export function inspectTarget(
       ...base,
       inRange,
       hitPercent: null,
-      savePercent: estimateSavePercent(target.saves[saveKind], attacker.spellDc),
+      savePercent: estimateSavePercent(
+        target.saves[saveKind] - savePenalty(target),
+        attacker.spellDc - dcPenalty(attacker),
+      ),
       saveKind,
       damageMin: adjustedAmount(target, band.min, damageType),
       damageMax: adjustedAmount(target, band.max, damageType),

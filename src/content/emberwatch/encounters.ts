@@ -10,6 +10,8 @@ interface FoeOptions {
   role?: FoeRole;
   damageType?: DamageType;
   theme?: FoeTheme;
+  /** Override the role's default on-hit condition (M10). */
+  onHit?: EntityBlueprint["onHitCondition"];
 }
 
 /** Tier-scaled save modifiers by role — skirmishers dodge, bruisers endure. */
@@ -36,6 +38,31 @@ function foeTheme(theme?: FoeTheme): Pick<EntityBlueprint, "resistances" | "weak
   return {};
 }
 
+/** Role-scaled Perception for initiative — skirmishers are alert, bruisers are not. */
+function foeInitiative(role: FoeRole, tier: number): number {
+  switch (role) {
+    case "skirmisher":
+      return 5 + tier;
+    case "bruiser":
+      return 2 + tier;
+    case "boss":
+      return 4 + tier;
+    default:
+      return 3 + tier;
+  }
+}
+
+/**
+ * M10 condition sources (decision 2026-06-11): bruiser slams knock prone,
+ * bosses frighten on a hit. Other roles only via an explicit onHit option.
+ */
+function foeOnHit(role: FoeRole, options?: FoeOptions): Pick<EntityBlueprint, "onHitCondition"> {
+  if (options?.onHit) return { onHitCondition: options.onHit };
+  if (role === "bruiser") return { onHitCondition: { condition: "prone" } };
+  if (role === "boss") return { onHitCondition: { condition: "frightened", value: 2 } };
+  return {};
+}
+
 /** Tier-scaled foe stats; same curve as the M6 generator so difficulty reads consistently. */
 function foe(
   id: EntityBlueprint["id"],
@@ -48,7 +75,9 @@ function foe(
   const role = options?.role ?? "melee";
   const shared = {
     saves: foeSaves(role, tier),
+    initiativeModifier: foeInitiative(role, tier),
     ...foeTheme(options?.theme),
+    ...foeOnHit(role, options),
   };
   switch (role) {
     case "skirmisher":
@@ -265,7 +294,13 @@ export const EMBERWATCH_ENCOUNTERS: Record<EncounterId, EncounterTemplate> = {
     battleMapId: "bmap_ossuary",
     enemies: [
       foe("ent_door_husk_1", "Vault Husk", 2, 4, 3, { theme: "ember" }),
-      foe("ent_door_shade_1", "Cinder Shade", 2, 7, 3, { role: "skirmisher", damageType: "cold", theme: "ember" }),
+      foe("ent_door_shade_1", "Cinder Shade", 2, 7, 3, {
+        role: "skirmisher",
+        damageType: "cold",
+        theme: "ember",
+        // Decision 2026-06-11: Cinder Shade hits set you burning.
+        onHit: { condition: "persistent_damage", damageType: "fire", damage: { count: 1, sides: 4, modifier: 0 } },
+      }),
     ],
   },
   enc_bone_walk: {
@@ -276,7 +311,13 @@ export const EMBERWATCH_ENCOUNTERS: Record<EncounterId, EncounterTemplate> = {
     enemies: [
       foe("ent_walk_husk_1", "Vault Husk", 2, 3, 3, { theme: "ember" }),
       foe("ent_walk_husk_2", "Vault Husk", 2, 8, 3, { theme: "ember" }),
-      foe("ent_walk_shade_1", "Cinder Shade", 2, 6, 1, { role: "skirmisher", damageType: "cold", theme: "ember" }),
+      foe("ent_walk_shade_1", "Cinder Shade", 2, 6, 1, {
+        role: "skirmisher",
+        damageType: "cold",
+        theme: "ember",
+        // Decision 2026-06-11: Cinder Shade hits set you burning.
+        onHit: { condition: "persistent_damage", damageType: "fire", damage: { count: 1, sides: 4, modifier: 0 } },
+      }),
     ],
   },
   enc_ember_cistern: {
@@ -286,8 +327,20 @@ export const EMBERWATCH_ENCOUNTERS: Record<EncounterId, EncounterTemplate> = {
     battleMapId: "bmap_cistern",
     enemies: [
       foe("ent_cistern_keeper_1", "Cistern Keeper", 3, 6, 1, { role: "bruiser", theme: "ember" }),
-      foe("ent_cistern_shade_1", "Cinder Shade", 3, 10, 2, { role: "skirmisher", damageType: "cold", theme: "ember" }),
-      foe("ent_cistern_shade_2", "Cinder Shade", 3, 10, 4, { role: "skirmisher", damageType: "cold", theme: "ember" }),
+      foe("ent_cistern_shade_1", "Cinder Shade", 3, 10, 2, {
+        role: "skirmisher",
+        damageType: "cold",
+        theme: "ember",
+        // Decision 2026-06-11: Cinder Shade hits set you burning.
+        onHit: { condition: "persistent_damage", damageType: "fire", damage: { count: 1, sides: 4, modifier: 0 } },
+      }),
+      foe("ent_cistern_shade_2", "Cinder Shade", 3, 10, 4, {
+        role: "skirmisher",
+        damageType: "cold",
+        theme: "ember",
+        // Decision 2026-06-11: Cinder Shade hits set you burning.
+        onHit: { condition: "persistent_damage", damageType: "fire", damage: { count: 1, sides: 4, modifier: 0 } },
+      }),
       foe("ent_cistern_husk_1", "Vault Husk", 3, 1, 4, { theme: "ember" }),
     ],
   },
@@ -299,7 +352,13 @@ export const EMBERWATCH_ENCOUNTERS: Record<EncounterId, EncounterTemplate> = {
     enemies: [
       foe("ent_reliquary_husk_1", "Vault Husk", 3, 4, 3, { theme: "ember" }),
       foe("ent_reliquary_husk_2", "Vault Husk", 3, 7, 3, { theme: "ember" }),
-      foe("ent_reliquary_shade_1", "Cinder Shade", 3, 6, 6, { role: "skirmisher", damageType: "cold", theme: "ember" }),
+      foe("ent_reliquary_shade_1", "Cinder Shade", 3, 6, 6, {
+        role: "skirmisher",
+        damageType: "cold",
+        theme: "ember",
+        // Decision 2026-06-11: Cinder Shade hits set you burning.
+        onHit: { condition: "persistent_damage", damageType: "fire", damage: { count: 1, sides: 4, modifier: 0 } },
+      }),
     ],
   },
   enc_ember_heart: {
@@ -309,8 +368,20 @@ export const EMBERWATCH_ENCOUNTERS: Record<EncounterId, EncounterTemplate> = {
     battleMapId: "bmap_deep_vault",
     enemies: [
       foe("ent_ember_revenant_1", "Ember Revenant", 4, 6, 3, { role: "boss", theme: "ember" }),
-      foe("ent_heart_shade_1", "Cinder Shade", 4, 3, 3, { role: "skirmisher", damageType: "cold", theme: "ember" }),
-      foe("ent_heart_shade_2", "Cinder Shade", 4, 8, 3, { role: "skirmisher", damageType: "cold", theme: "ember" }),
+      foe("ent_heart_shade_1", "Cinder Shade", 4, 3, 3, {
+        role: "skirmisher",
+        damageType: "cold",
+        theme: "ember",
+        // Decision 2026-06-11: Cinder Shade hits set you burning.
+        onHit: { condition: "persistent_damage", damageType: "fire", damage: { count: 1, sides: 4, modifier: 0 } },
+      }),
+      foe("ent_heart_shade_2", "Cinder Shade", 4, 8, 3, {
+        role: "skirmisher",
+        damageType: "cold",
+        theme: "ember",
+        // Decision 2026-06-11: Cinder Shade hits set you burning.
+        onHit: { condition: "persistent_damage", damageType: "fire", damage: { count: 1, sides: 4, modifier: 0 } },
+      }),
       foe("ent_heart_husk_1", "Vault Husk", 4, 5, 6, { theme: "ember" }),
     ],
   },

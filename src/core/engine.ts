@@ -57,6 +57,10 @@ function cloneInitialState(initial: GameState): GameState {
         {
           ...e,
           conditions: [...e.conditions],
+          activeConditions: e.activeConditions.map((c) => ({
+            ...c,
+            ...(c.damage ? { damage: { ...c.damage } } : {}),
+          })),
           saves: { ...e.saves },
           ...(e.spellSlots ? { spellSlots: e.spellSlots.map((slot) => ({ ...slot })) } : {}),
         },
@@ -123,14 +127,38 @@ function effectFromEvent(event: GameEvent): AnyEffect | null {
         kind: "ApplyCondition",
         effectId: fromEffect,
         targetId: event.payload.target_id as EntityId,
-        condition: event.payload.condition as "flat_footed",
+        condition: event.payload.condition as import("./types").ConditionId,
+        ...(event.payload.value !== undefined ? { value: event.payload.value as number } : {}),
+        ...(event.payload.damage_type !== undefined
+          ? { damageType: event.payload.damage_type as import("./types").DamageType }
+          : {}),
+        ...(event.payload.damage !== undefined
+          ? { damage: event.payload.damage as { count: number; sides: number; modifier: number } }
+          : {}),
       };
     case "ConditionRemoved":
       return {
         kind: "RemoveCondition",
         effectId: fromEffect,
         targetId: event.payload.target_id as EntityId,
-        condition: event.payload.condition as "flat_footed",
+        condition: event.payload.condition as import("./types").ConditionId,
+        ...(event.payload.damage_type !== undefined
+          ? { damageType: event.payload.damage_type as import("./types").DamageType }
+          : {}),
+      };
+    case "ConditionTicked":
+      return {
+        kind: "TickCondition",
+        effectId: fromEffect,
+        targetId: event.payload.target_id as EntityId,
+        condition: event.payload.condition as import("./types").ConditionId,
+        amount: event.payload.amount as number,
+      };
+    case "ReactionSpent":
+      return {
+        kind: "SpendReaction",
+        effectId: fromEffect,
+        entityId: event.payload.entity_id as EntityId,
       };
     case "ActionPointsSpent":
       return {

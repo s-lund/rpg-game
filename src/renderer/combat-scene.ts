@@ -316,11 +316,15 @@ export class CombatScene {
         break;
       }
       case "DamageDealt": {
-        const resolution = event.payload.attack_resolution as { hit?: boolean } | undefined;
+        const resolution = event.payload.attack_resolution as
+          | { hit?: boolean; reactionBy?: { reactorId: string } }
+          | undefined;
         if (resolution?.hit) {
           const damageType = event.payload.damage_type as string;
           const kind = damageType === "cold" ? "spell_bolt" : "arrow";
-          this.spawnProjectile(event.actorId, String(event.payload.target_id), kind);
+          // An AoO's event actor is the provoking mover — shoot from the reactor.
+          const sourceId = resolution.reactionBy?.reactorId ?? event.actorId;
+          this.spawnProjectile(sourceId, String(event.payload.target_id), kind);
         } else if (event.payload.save_resolution) {
           // Save-based area damage (Breathe Fire) — placeholder bolt per target.
           this.spawnProjectile(event.actorId, String(event.payload.target_id), "spell_bolt");

@@ -1,6 +1,7 @@
 import {
   createDefaultRng,
   createInitialState,
+  createSeededRng,
   dispatch,
   type Action,
   type GameEvent,
@@ -11,10 +12,16 @@ import {
 /** Thin bridge: owns core session, emits events to read-only consumers. */
 export class CombatSession {
   private session: Session;
+  /** Initiative seed (M10): same seed + config rebuilds the same initial state for replay. */
+  readonly seed: number;
   private readonly listeners = new Set<(events: GameEvent[]) => void>();
 
-  constructor(config: InitialStateConfig) {
-    this.session = { state: createInitialState(config), nextSeq: 1 };
+  constructor(config: InitialStateConfig, seed?: number) {
+    this.seed = seed ?? (Date.now() ^ (Math.random() * 0x7fffffff)) >>> 0;
+    this.session = {
+      state: createInitialState({ ...config, rng: createSeededRng(this.seed) }),
+      nextSeq: 1,
+    };
   }
 
   getState() {

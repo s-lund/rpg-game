@@ -11,6 +11,21 @@ function unexpendedSlots(entity: Entity, spellId: string): number {
     .length;
 }
 
+/** "frightened 2", "prone", "persistent fire" — badges from activeConditions (M10). */
+export function conditionBadges(entity: Entity): string[] {
+  return entity.activeConditions.map((c) => {
+    if (c.id === "persistent_damage") {
+      return `persistent ${c.damageType ?? "?"}`;
+    }
+    const name = c.id === "flat_footed" ? "flat-footed" : c.id;
+    return c.value !== undefined ? `${name} ${c.value}` : name;
+  });
+}
+
+function isProne(entity: Entity): boolean {
+  return entity.conditions.includes("prone");
+}
+
 export class CombatHud {
   private element: HTMLDivElement;
   private buttonEl: HTMLButtonElement;
@@ -18,6 +33,7 @@ export class CombatHud {
   private inspectorEl: HTMLDivElement;
   private onEndTurn: (() => void) | null = null;
   private onActionModeChange: ((mode: CombatActionMode) => void) | null = null;
+  private onStand: (() => void) | null = null;
   private actionMode: CombatActionMode = "strike";
 
   constructor(container: HTMLElement) {
@@ -101,6 +117,10 @@ export class CombatHud {
     this.onActionModeChange = handler;
   }
 
+  setOnStand(handler: () => void): void {
+    this.onStand = handler;
+  }
+
   getActionMode(): CombatActionMode {
     return this.actionMode;
   }
@@ -110,7 +130,13 @@ export class CombatHud {
     this.onActionModeChange?.(mode);
   }
 
-  showInspector(label: string, info: TargetInspection, clientX: number, clientY: number): void {
+  showInspector(
+    label: string,
+    info: TargetInspection,
+    clientX: number,
+    clientY: number,
+    conditions: string[] = [],
+  ): void {
     const saveLabels = { fortitude: "Fortitude", reflex: "Reflex", will: "Will" } as const;
     const isSaveSpell = info.savePercent !== undefined && info.savePercent !== null;
     const lines = [
@@ -143,6 +169,9 @@ export class CombatHud {
       lines.push(
         `<span style='color:#7eb8ff'>Resists ${info.resistanceApplied.damageType} (−${info.resistanceApplied.value})</span>`,
       );
+    }
+    if (conditions.length > 0) {
+      lines.push(`<span style='color:#e0a060'>${conditions.map(escapeHtml).join(", ")}</span>`);
     }
     this.inspectorEl.innerHTML = lines.join("<br>");
     this.inspectorEl.style.display = "block";
@@ -183,6 +212,24 @@ export class CombatHud {
       `Round ${state.combat.round} · Phase: ${state.combat.phase}`,
     ];
 
+    // Initiative strip (M10): rolled order, party gold / enemy red, active boxed.
+    if (state.combat.phase === "active") {
+      const chips = state.combat.turnOrder.map((id) => {
+        const e = state.entities[id];
+        if (!e) return "";
+        const roll = state.combat.initiative?.[id];
+        const title = roll ? ` (${roll.total})` : "";
+        const color = e.team === "party" ? "#ffd27a" : "#e07070";
+        const deco = e.downed ? "text-decoration:line-through;opacity:0.45;" : "";
+        const box =
+          id === state.combat.activeActorId
+            ? "border:1px solid #ffb43c;border-radius:3px;padding:0 3px;"
+            : "";
+        return `<span style='color:${color};${deco}${box}'>${escapeHtml(e.label)}${title}</span>`;
+      });
+      lines.push(`<span style='color:#888'>Initiative:</span> ${chips.filter(Boolean).join(" → ")}`);
+    }
+
     if (state.combat.phase === "victory") {
       lines.push("", "<span style='color:#6fcf97'>Victory — encounter cleared.</span>");
       this.buttonEl.style.display = "none";
@@ -200,11 +247,19 @@ export class CombatHud {
           "",
           `<strong style='color:#ffb43c'>Your turn: ${escapeHtml(active.label)}</strong>`,
           `<span style='color:#aaa'>${active.actionPoints} action point${active.actionPoints === 1 ? "" : "s"} left</span>`,
+        );
+        if (isProne(active)) {
+          lines.push(
+            "<span style='color:#e0a060'>You are prone — Stand (1 AP) before moving; attacks at −2.</span>",
+          );
+        }
+        lines.push(
           "",
           "<strong>What to do</strong>",
           "1. Pick an action mode below — <strong>Move</strong> never casts.",
           "2. Click a <strong>tile</strong> to move (1 AP/tile); with Breathe Fire selected the click casts there instead.",
           "3. Click a <strong>target</strong> — enemy to attack/cast, ally to heal.",
+          "<span style='color:#e0a060'>Leaving a melee enemy's reach provokes its Attack of Opportunity — and yours.</span>",
           `4. <strong>End Turn</strong> or press <kbd style='background:#333;padding:1px 5px;border-radius:3px'>E</kbd>.`,
         );
         this.buttonEl.textContent = "End Turn";
@@ -229,22 +284,35 @@ export class CombatHud {
     lines.push("", "<strong>Party</strong>");
     for (const entity of Object.values(state.entities)) {
       if (entity.team !== "party") continue;
-      const cond = entity.conditions.length ? ` [${entity.conditions.join(", ")}]` : "";
+      const badges = conditionBadges(entity);
+      const cond = badges.length
+        ? ` <span style='color:#e0a060'>[${badges.map(escapeHtml).join(", ")}]</span>`
+        : "";
       const status = entity.downed ? " DOWN" : "";
       const slots = entity.spellSlots
         ? ` · slots ${entity.spellSlots.filter((s) => !s.expended).length}/${entity.spellSlots.length}`
         : "";
+      // Reaction marker only where it matters: melee-armed combatants threaten (M10 house rule).
+      const reaction =
+        !entity.downed && entity.strikeRange === 1
+          ? entity.reactionAvailable
+            ? " <span title='reaction ready' style='color:#ffd27a'>⚡</span>"
+            : " <span title='reaction spent' style='color:#555'>⚡</span>"
+          : "";
       const marker =
         entity.id === state.combat.activeActorId ? " <span style='color:#ffb43c'>← active</span>" : "";
       lines.push(
-        `${escapeHtml(entity.label)}: ${entity.hp}/${entity.maxHp} HP · AC ${entity.ac} · ${entity.actionPoints} AP${slots}${cond}${status}${marker}`,
+        `${escapeHtml(entity.label)}: ${entity.hp}/${entity.maxHp} HP · AC ${entity.ac} · ${entity.actionPoints} AP${slots}${reaction}${cond}${status}${marker}`,
       );
     }
 
     lines.push("", "<strong>Enemies</strong>");
     for (const entity of Object.values(state.entities)) {
       if (entity.team !== "enemy") continue;
-      const cond = entity.conditions.length ? ` [${entity.conditions.join(", ")}]` : "";
+      const badges = conditionBadges(entity);
+      const cond = badges.length
+        ? ` <span style='color:#e0a060'>[${badges.map(escapeHtml).join(", ")}]</span>`
+        : "";
       const status = entity.downed ? " DOWN" : "";
       lines.push(
         `${escapeHtml(entity.label)}: ${entity.hp}/${entity.maxHp} HP${cond}${status}`,
@@ -317,6 +385,30 @@ export class CombatHud {
         disabled: entity.spellSlots ? healSlots === 0 : false,
       },
     ];
+
+    // Stand (M10): immediate 1-action button while prone, not a click mode.
+    if (isProne(entity)) {
+      const standBtn = document.createElement("button");
+      standBtn.type = "button";
+      standBtn.textContent = "Stand (1 AP)";
+      const standDisabled = entity.actionPoints < 1;
+      standBtn.disabled = standDisabled;
+      standBtn.style.cssText = [
+        "pointer-events: auto",
+        standDisabled ? "cursor: not-allowed" : "cursor: pointer",
+        standDisabled ? "opacity: 0.45" : "opacity: 1",
+        "padding: 6px 10px",
+        "border-radius: 4px",
+        "border: 1px solid rgba(224, 160, 96, 0.9)",
+        "background: rgba(224, 160, 96, 0.18)",
+        "color: #e0a060",
+        "font: 600 12px/1 ui-sans-serif, system-ui, sans-serif",
+      ].join(";");
+      standBtn.addEventListener("click", () => {
+        if (!standDisabled) this.onStand?.();
+      });
+      this.actionBar.appendChild(standBtn);
+    }
 
     for (const { mode, label, show, disabled } of modes) {
       if (!show) continue;

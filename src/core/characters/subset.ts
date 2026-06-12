@@ -1,5 +1,5 @@
-/** Curated M9 rules tables — sourced from rules/srd/m9-subset.json (ORC SRD). */
-import subsetJson from "../../../rules/srd/m9-subset.json";
+/** Curated M10 rules tables — sourced from rules/srd/m10-subset.json (ORC SRD). */
+import subsetJson from "../../../rules/srd/m10-subset.json";
 
 export type ClassId = "fighter" | "rogue" | "wizard" | "cleric";
 export type AbilityId = "str" | "dex" | "con" | "int" | "wis" | "cha";
@@ -12,6 +12,7 @@ export interface ClassRulesBase {
   keyAbilities: AbilityId[];
   hpPerLevel: number;
   saves: Record<"fortitude" | "reflex" | "will", ProficiencyRank>;
+  perception: ProficiencyRank;
   armor: {
     label: string;
     acBonus: number;
@@ -69,51 +70,53 @@ export interface ClericClassRules extends ClassRulesBase {
   additionalSkillBase: number;
 }
 
-export const M9_SUBSET = subsetJson;
-/** @deprecated Use M9_SUBSET — alias for transitional imports */
-export const M7_SUBSET = M9_SUBSET;
-/** @deprecated Use M9_SUBSET — alias for transitional imports */
-export const M2_SUBSET = M9_SUBSET;
+export const M10_SUBSET = subsetJson;
+/** @deprecated Use M10_SUBSET — alias for transitional imports */
+export const M9_SUBSET = M10_SUBSET;
+/** @deprecated Use M10_SUBSET — alias for transitional imports */
+export const M7_SUBSET = M10_SUBSET;
+/** @deprecated Use M10_SUBSET — alias for transitional imports */
+export const M2_SUBSET = M10_SUBSET;
 
-export const ABILITY_IDS = M9_SUBSET.abilities as AbilityId[];
+export const ABILITY_IDS = M10_SUBSET.abilities as AbilityId[];
 
-export const SAVE_ABILITIES = M9_SUBSET.saveAbilities as Record<
+export const SAVE_ABILITIES = M10_SUBSET.saveAbilities as Record<
   "fortitude" | "reflex" | "will",
   AbilityId
 >;
 
 export function fighterRules(): FighterClassRules {
-  return M9_SUBSET.classes.fighter as FighterClassRules;
+  return M10_SUBSET.classes.fighter as FighterClassRules;
 }
 
 export function rogueRules(): RogueClassRules {
-  return M9_SUBSET.classes.rogue as RogueClassRules;
+  return M10_SUBSET.classes.rogue as RogueClassRules;
 }
 
 export function wizardRules(): WizardClassRules {
-  return M9_SUBSET.classes.wizard as WizardClassRules;
+  return M10_SUBSET.classes.wizard as WizardClassRules;
 }
 
 export function clericRules(): ClericClassRules {
-  return M9_SUBSET.classes.cleric as ClericClassRules;
+  return M10_SUBSET.classes.cleric as ClericClassRules;
 }
 
-export function spellDef<K extends SpellId>(spellId: K): (typeof M9_SUBSET.spells)[K] {
-  return M9_SUBSET.spells[spellId];
+export function spellDef<K extends SpellId>(spellId: K): (typeof M10_SUBSET.spells)[K] {
+  return M10_SUBSET.spells[spellId];
 }
 
 export function damageSpellDef(spellId: "ray_of_frost") {
-  return M9_SUBSET.spells[spellId];
+  return M10_SUBSET.spells[spellId];
 }
 
 export function healSpellDef(spellId: "heal_ranged") {
-  return M9_SUBSET.spells[spellId];
+  return M10_SUBSET.spells[spellId];
 }
 
 export function coneSpellDef(spellId: "breathe_fire") {
-  return M9_SUBSET.spells[spellId];
+  return M10_SUBSET.spells[spellId];
 }
 
 export function spellRank(spellId: SpellId): number {
-  return M9_SUBSET.spells[spellId].rank;
+  return M10_SUBSET.spells[spellId].rank;
 }

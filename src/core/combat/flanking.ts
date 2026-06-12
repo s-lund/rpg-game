@@ -1,6 +1,7 @@
 import type { EntityId } from "../../shared/ids";
 import type { GameState } from "../types";
 import { isAdjacent } from "./grid";
+import { acPenalty } from "./conditions";
 
 function areOppositeSides(
   ax: number,
@@ -48,9 +49,6 @@ export function isFlanking(state: GameState, attackerId: EntityId, targetId: Ent
 
 export function effectiveAc(state: GameState, targetId: EntityId): number {
   const target = state.entities[targetId]!;
-  let ac = target.ac;
-  if (target.conditions.includes("flat_footed")) {
-    ac -= 2;
-  }
-  return ac;
+  // acPenalty: off-guard (flat_footed / prone) −2 circumstance, frightened status.
+  return target.ac - acPenalty(target);
 }

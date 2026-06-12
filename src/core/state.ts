@@ -1,6 +1,7 @@
 import type { EntityId } from "../shared/ids";
-import type { Entity, EntityBlueprint, GameState, InitialStateConfig } from "./types";
+import type { Entity, EntityBlueprint, GameState, InitialStateConfig, InitiativeRoll } from "./types";
 import type { SpellId } from "./characters/subset";
+import type { Rng } from "./rng";
 
 const DEFAULT_ACTION_POINTS = 3;
 
@@ -32,10 +33,47 @@ function blueprintToEntity(blueprint: EntityBlueprint, team: Entity["team"]): En
       ? { spellSlots: blueprint.spellSlots.map((slot) => ({ ...slot })) }
       : {}),
     conditions: [],
+    activeConditions: [],
+    reactionAvailable: !downed,
+    ...(blueprint.onHitCondition ? { onHitCondition: { ...blueprint.onHitCondition } } : {}),
     actionPoints: downed ? 0 : DEFAULT_ACTION_POINTS,
     maxActionPoints: DEFAULT_ACTION_POINTS,
     downed,
   };
+}
+
+/**
+ * Rolled initiative (rules/srd/initiative.md): Perception check per entity,
+ * ranked highest first. Ties: enemy before party (RAW); same team keeps
+ * blueprint order (party-slot order — the headless stand-in for "PCs choose").
+ * Rolls are STORED ON THE INITIAL STATE rather than emitted as events because
+ * replayEvents starts from the caller's initial state — the same seed rebuilds
+ * the same order with no replay cases needed.
+ */
+function rollInitiative(
+  rng: Rng,
+  entities: Record<EntityId, Entity>,
+  blueprintOrder: EntityId[],
+  modifiers: Record<EntityId, number>,
+): { turnOrder: EntityId[]; initiative: Record<EntityId, InitiativeRoll> } {
+  const initiative: Record<EntityId, InitiativeRoll> = {};
+  for (const id of blueprintOrder) {
+    const d20 = rng.d20();
+    const modifier = modifiers[id] ?? 0;
+    initiative[id] = { d20, modifier, total: d20 + modifier };
+  }
+
+  const turnOrder = [...blueprintOrder].sort((a, b) => {
+    const ra = initiative[a]!;
+    const rb = initiative[b]!;
+    if (rb.total !== ra.total) return rb.total - ra.total;
+    const ta = entities[a]!.team;
+    const tb = entities[b]!.team;
+    if (ta !== tb) return ta === "enemy" ? -1 : 1;
+    return blueprintOrder.indexOf(a) - blueprintOrder.indexOf(b);
+  });
+
+  return { turnOrder, initiative };
 }
 
 function firstActiveInTurnOrder(entities: GameState["entities"], turnOrder: EntityId[]): EntityId | null {
@@ -48,16 +86,24 @@ function firstActiveInTurnOrder(entities: GameState["entities"], turnOrder: Enti
 
 export function createInitialState(config: InitialStateConfig): GameState {
   const entities: Record<EntityId, Entity> = {};
-  const turnOrder: EntityId[] = [];
+  const blueprintOrder: EntityId[] = [];
+  const modifiers: Record<EntityId, number> = {};
 
   for (const blueprint of config.party) {
     entities[blueprint.id] = blueprintToEntity(blueprint, "party");
-    turnOrder.push(blueprint.id);
+    blueprintOrder.push(blueprint.id);
+    modifiers[blueprint.id] = blueprint.initiativeModifier ?? 0;
   }
   for (const blueprint of config.enemies) {
     entities[blueprint.id] = blueprintToEntity(blueprint, "enemy");
-    turnOrder.push(blueprint.id);
+    blueprintOrder.push(blueprint.id);
+    modifiers[blueprint.id] = blueprint.initiativeModifier ?? 0;
   }
+
+  const rolled = config.rng
+    ? rollInitiative(config.rng, entities, blueprintOrder, modifiers)
+    : null;
+  const turnOrder = rolled ? rolled.turnOrder : blueprintOrder;
 
   return {
     map: {
@@ -73,6 +119,7 @@ export function createInitialState(config: InitialStateConfig): GameState {
       round: 1,
       activeActorId: firstActiveInTurnOrder(entities, turnOrder),
       turnOrder,
+      ...(rolled ? { initiative: rolled.initiative } : {}),
     },
     eventLog: [],
   };

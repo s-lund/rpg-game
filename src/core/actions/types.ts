@@ -39,6 +39,11 @@ export type Action =
       targetY: number;
     }
   | {
+      kind: "Stand";
+      actionId: string;
+      actorId: EntityId;
+    }
+  | {
       kind: "EndTurn";
       actionId: string;
       actorId: EntityId;
