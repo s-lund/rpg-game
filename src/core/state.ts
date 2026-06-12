@@ -112,6 +112,9 @@ export function createInitialState(config: InitialStateConfig): GameState {
       ...(config.blockedTiles && config.blockedTiles.length > 0
         ? { blocked: config.blockedTiles.map((t) => ({ ...t })) }
         : {}),
+      ...(config.coverTiles && config.coverTiles.length > 0
+        ? { cover: config.coverTiles.map((t) => ({ ...t })) }
+        : {}),
     },
     entities,
     combat: {

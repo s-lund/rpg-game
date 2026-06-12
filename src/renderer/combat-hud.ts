@@ -142,10 +142,21 @@ export class CombatHud {
     const lines = [
       `<strong style='color:#6fcf97'>${escapeHtml(label)}</strong>`,
       `HP ${info.hp}/${info.maxHp}`,
-      info.inRange
-        ? "<span style='color:#8fd4a0'>In range</span>"
-        : "<span style='color:#e07070'>Out of range</span>",
+      !info.lineOfEffect
+        ? "<span style='color:#e07070'>No line of effect — cannot target</span>"
+        : info.inRange
+          ? "<span style='color:#8fd4a0'>In range</span>"
+          : "<span style='color:#e07070'>Out of range</span>",
     ];
+    if (info.coverLabel && info.lineOfEffect) {
+      lines.push(`<span style='color:#a0c4e8'>${escapeHtml(info.coverLabel)}</span>`);
+    }
+    if (info.effectiveAc !== undefined && info.coverAcBonus) {
+      lines.push(`AC ${info.baseAc} +${info.coverAcBonus} cover = ${info.effectiveAc}`);
+    }
+    if (info.coverReflexBonus) {
+      lines.push(`<span style='color:#a0c4e8'>+${info.coverReflexBonus} Reflex vs area</span>`);
+    }
     if (info.hitPercent !== null) {
       lines.push(`Hit ~${info.hitPercent}%`);
     }

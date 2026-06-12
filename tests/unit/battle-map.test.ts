@@ -124,6 +124,26 @@ describe("battle map resolution", () => {
     // perimeter walls (24) + 1 crate
     expect(resolved.blocked).toHaveLength(25);
     expect(resolved.blocked).toContainEqual({ x: 3, y: 2 });
+
+    expect(resolved.cover).toContainEqual({ x: 3, y: 2, kind: "raised" });
+    expect(resolved.cover.filter((t) => t.kind === "wall").length).toBe(24);
+  });
+
+  it("omits water-style flat blocked tiles from cover", () => {
+    const waterTileset: BattleTileset = {
+      ...tileset,
+      kinds: {
+        ...tileset.kinds,
+        water: { fill: "#224466", blocked: true },
+      },
+    };
+    const map = makeMap({
+      rows: ["########", "#..~...#", "#......#", "#......#", "#......#", "########"],
+      legend: { "#": "wall", ".": "floor", c: "crate", "~": "water" },
+    });
+    const resolved = resolveBattleMap(map, waterTileset);
+    expect(resolved.blocked.some((t) => t.x === 3 && t.y === 1)).toBe(true);
+    expect(resolved.cover.some((t) => t.x === 3 && t.y === 1)).toBe(false);
   });
 
   it("throws on an invalid definition", () => {

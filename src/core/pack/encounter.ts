@@ -69,6 +69,7 @@ export function buildPackEncounter(
       party: derivePartyBlueprints(campaign.party, battleMap.partySpawns),
       enemies,
       blockedTiles: battleMap.blocked.map((b) => ({ ...b })),
+      coverTiles: battleMap.cover.map((c) => ({ ...c })),
     },
     battleMap,
   };

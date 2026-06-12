@@ -14,7 +14,7 @@ import {
   inspectTarget,
   spellDef,
   coneSpellDef,
-  coneTiles,
+  coneTilesWithLineOfEffect,
   prepareSpellSlotsAtHaven,
   resolveSiteKind,
   markSiteHeld,
@@ -642,9 +642,9 @@ function init(): void {
     "m9_slot_recovery",
     "free slot re-preparation on arriving at a safe haven — PROCEDURAL stand-in until M19 rest",
   );
-  presence.registerProcedural(
-    "m9_cone_line_of_effect",
-    "Breathe Fire cone ignores walls — line of sight/effect arrives in M11",
+  presence.registerRendered(
+    "m11_los_cover",
+    "M11 line of effect + corner-sampled cover from rules/srd/cover.md, line-of-effect.md, m11-subset.json",
   );
   presence.registerRendered(
     "m10_initiative",
@@ -1019,6 +1019,14 @@ function init(): void {
       if (entity.team === "party") {
         const selectedId = combatScene.getSelectedEntity();
         if (mode === "cast_heal" && selectedId === activeId && activeId) {
+          const healInfo = inspectTarget(
+            state,
+            activeId,
+            pick.entityId as EntityId,
+            "cast_heal",
+            "heal_ranged",
+          );
+          if (!healInfo?.lineOfEffect || !healInfo.inRange) return;
           const acted = dispatchCombatAction(activeId, pick.entityId as EntityId, "cast_heal");
           if (acted) refreshHudAndOverlay();
           return;
@@ -1042,6 +1050,17 @@ function init(): void {
         if (acted) refreshHudAndOverlay();
         return;
       }
+
+      const inspectKind = actionModeToInspectKind(mode);
+      const spellId = mode === "cast_spell" ? "ray_of_frost" : undefined;
+      const info = inspectTarget(
+        state,
+        selectedId as EntityId,
+        pick.entityId as EntityId,
+        inspectKind,
+        spellId,
+      );
+      if (!info?.lineOfEffect || !info.inRange) return;
 
       const acted = dispatchCombatAction(selectedId as EntityId, pick.entityId as EntityId, mode);
       if (acted) refreshHudAndOverlay();
@@ -1090,7 +1109,8 @@ function init(): void {
       const aimX = pick.kind === "entity" ? state.entities[pick.entityId as EntityId]?.x : pick.x;
       const aimY = pick.kind === "entity" ? state.entities[pick.entityId as EntityId]?.y : pick.y;
       if (aimX !== undefined && aimY !== undefined) {
-        const tiles = coneTiles(
+        const tiles = coneTilesWithLineOfEffect(
+          state.map,
           actor.x,
           actor.y,
           aimX,
@@ -1104,6 +1124,7 @@ function init(): void {
     }
 
     if (!pick || pick.kind !== "entity") {
+      combatScene.setHoverTarget(null, false);
       combatHud.hideInspector();
       return;
     }
@@ -1147,6 +1168,13 @@ function init(): void {
             : undefined;
     const info = inspectTarget(state, activeId, pick.entityId as EntityId, inspectKind, spellId);
     if (!info) {
+      combatScene.setHoverTarget(null, false);
+      combatHud.hideInspector();
+      return;
+    }
+    const targetable = info.lineOfEffect && info.inRange;
+    combatScene.setHoverTarget(pick.entityId, targetable);
+    if (!info.lineOfEffect) {
       combatHud.hideInspector();
       return;
     }
@@ -1161,7 +1189,10 @@ function init(): void {
 
   renderer.domElement.addEventListener("click", handlePointerClick);
   renderer.domElement.addEventListener("mousemove", handlePointerMove);
-  renderer.domElement.addEventListener("mouseleave", () => combatHud?.hideInspector());
+  renderer.domElement.addEventListener("mouseleave", () => {
+    combatScene?.setHoverTarget(null, false);
+    combatHud?.hideInspector();
+  });
 
   window.addEventListener("keydown", (event) => {
     if (event.key === "e" || event.key === "E") {
@@ -1605,7 +1636,7 @@ function init(): void {
       startCombat,
     };
     console.info(
-      "[EMBERWATCH] M10 — initiative, reactions + conditions (rolled turn order, universal melee AoO house rule, frightened/prone/stunned/slowed/persistent damage); F3/~ overlay",
+      "[EMBERWATCH] M11 — line of sight, cover + friendly fire (corner-sampled LoS, prop/creature cover, cone clipped by walls); F3/~ overlay",
       { manifestSummary, selectedPackId },
     );
   }

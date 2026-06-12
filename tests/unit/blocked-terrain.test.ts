@@ -102,6 +102,20 @@ describe("blocked terrain", () => {
     }
   });
 
+  it("cover tiles survive createInitialState into state.map", () => {
+    const state = createInitialState({
+      ...configWithWall(),
+      coverTiles: [
+        { x: 2, y: 1, kind: "wall" },
+        { x: 3, y: 4, kind: "raised" },
+      ],
+    });
+    expect(state.map.cover).toEqual([
+      { x: 2, y: 1, kind: "wall" },
+      { x: 3, y: 4, kind: "raised" },
+    ]);
+  });
+
   it("blocked tiles survive event-log replay", () => {
     const initial = createInitialState(configWithWall());
     let session = { state: initial, nextSeq: 1 };

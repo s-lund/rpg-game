@@ -80,6 +80,44 @@ describe("enemy turn AI", () => {
     }
   });
 
+  it("ranged enemy steps instead of shooting through a wall", () => {
+    const state = createInitialState({
+      width: 5,
+      height: 1,
+      blockedTiles: [{ x: 2, y: 0 }],
+      coverTiles: [{ x: 2, y: 0, kind: "wall" }],
+      party: [
+        {
+          id: "ent_fighter_01" as EntityId,
+          label: "Fighter",
+          x: 4,
+          y: 0,
+          maxHp: 20,
+          ac: 16,
+          strikeRange: 1,
+        },
+      ],
+      enemies: [
+        {
+          id: "ent_skirmisher_01" as EntityId,
+          label: "Skirmisher",
+          x: 0,
+          y: 0,
+          maxHp: 10,
+          ac: 14,
+          attackBonus: 7,
+          strikeRange: 6,
+          damage: { count: 1, sides: 6, modifier: 1 },
+        },
+      ],
+    });
+    state.combat.activeActorId = "ent_skirmisher_01";
+
+    const action = chooseEnemyAction(state, "ent_skirmisher_01");
+    expect(action?.kind).not.toBe("Strike");
+    expect(action?.kind).toBe("Step");
+  });
+
   it("ranged enemy strikes without adjacency", () => {
     const state = createInitialState({
       width: 12,

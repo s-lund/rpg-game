@@ -75,8 +75,10 @@ function formatSaveResolution(event: GameEvent, ctx: NarrationContext): string[]
   const target = label(ctx, String(event.payload.target_id));
   const lines: string[] = [];
 
+  const coverPart =
+    res.coverBonus && res.coverBonus > 0 ? ` + ${res.coverBonus} cover` : "";
   lines.push(
-    `  ${target} ${SAVE_KIND_LABELS[res.saveKind]} save: d20(${res.d20Natural}) + ${res.saveModifier} = ${res.saveTotal} vs DC ${res.dc} — ${SAVE_OUTCOME_LABELS[res.outcome]}`,
+    `  ${target} ${SAVE_KIND_LABELS[res.saveKind]} save: d20(${res.d20Natural}) + ${res.saveModifier}${coverPart} = ${res.saveTotal} vs DC ${res.dc} — ${SAVE_OUTCOME_LABELS[res.outcome]}`,
   );
 
   const amount = event.payload.amount as number;
@@ -100,8 +102,12 @@ function formatAttackResolution(event: GameEvent, ctx: NarrationContext): string
   const lines: string[] = [];
 
   const hitMiss = res.hit ? "HIT" : "MISS";
+  const acPart =
+    res.coverAcBonus && res.coverAcBonus > 0
+      ? `AC ${res.targetAc} +${res.coverAcBonus} cover = ${res.targetAc + res.coverAcBonus}`
+      : `AC ${res.targetAc}`;
   lines.push(
-    `${actor} → ${target}: d20(${res.d20Natural}) + ${res.attackBonus} = ${res.attackTotal} vs AC ${res.targetAc} — ${hitMiss}`,
+    `${actor} → ${target}: d20(${res.d20Natural}) + ${res.attackBonus} = ${res.attackTotal} vs ${acPart} — ${hitMiss}`,
   );
 
   if (!res.hit) {

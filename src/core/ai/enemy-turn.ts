@@ -1,11 +1,27 @@
 import type { EntityId } from "../../shared/ids";
 import type { Action } from "../actions/types";
+import { evaluateCover } from "../combat/los";
 import { canTargetEnemy } from "../combat/range";
 import { isInBounds, isTileBlocked, isTileOccupied, manhattanDistance } from "../combat/grid";
 import type { Entity, GameState } from "../types";
 
 function livingParty(state: GameState): Entity[] {
   return Object.values(state.entities).filter((e) => e.team === "party" && !e.downed);
+}
+
+function standingTiles(state: GameState): { x: number; y: number }[] {
+  return Object.values(state.entities)
+    .filter((e) => !e.downed)
+    .map((e) => ({ x: e.x, y: e.y }));
+}
+
+function hasShootingLine(state: GameState, actor: Entity, target: Entity): boolean {
+  return evaluateCover(
+    state.map,
+    { x: actor.x, y: actor.y },
+    { x: target.x, y: target.y },
+    standingTiles(state),
+  ).lineOfEffect;
 }
 
 function nearestPartyMember(state: GameState, actor: Entity): Entity | null {
@@ -73,7 +89,8 @@ export function chooseEnemyAction(state: GameState, actorId: EntityId): Action |
   if (
     actor.actionPoints >= 1 &&
     actor.attackBonus > 0 &&
-    canTargetEnemy(state, actorId, target.id, strikeRange)
+    canTargetEnemy(state, actorId, target.id, strikeRange) &&
+    hasShootingLine(state, actor, target)
   ) {
     return {
       kind: "Strike",

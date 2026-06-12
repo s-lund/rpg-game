@@ -9,6 +9,12 @@ import { canTargetAlly, canTargetEnemy, isInRange } from "../combat/range";
 import { isAdjacent, isInBounds, isTileBlocked, isTileOccupied } from "../combat/grid";
 import { findStepPath } from "../combat/path";
 import { coneTiles } from "../combat/cone";
+import {
+  coneTilesWithLineOfEffect,
+  coverReflexVsAreaBonus,
+  evaluateCover,
+  hasLineOfEffect,
+} from "../combat/los";
 import { adjustDamage } from "../combat/damage";
 import { basicSaveDamage, rollSave } from "../combat/save";
 import {
@@ -45,6 +51,12 @@ function sumDice(rolls: number[], modifier: number): number {
 function weaponLabel(count: number, sides: number, modifier: number): string {
   const mod = modifier >= 0 ? `+${modifier}` : `${modifier}`;
   return `${count}d${sides}${mod}`;
+}
+
+function standingTiles(state: GameState): { x: number; y: number }[] {
+  return Object.values(state.entities)
+    .filter((e) => !e.downed)
+    .map((e) => ({ x: e.x, y: e.y }));
 }
 
 export function resolveAction(action: Action, state: GameState, rng: Rng): ResolveResult {
@@ -374,6 +386,17 @@ function resolveStrike(
     return { effects: [] };
   }
 
+  const occupied = standingTiles(state);
+  const cover = evaluateCover(
+    state.map,
+    { x: actor.x, y: actor.y },
+    { x: target.x, y: target.y },
+    occupied,
+  );
+  if (!cover.lineOfEffect) {
+    return { effects: [] };
+  }
+
   const effects: AnyEffect[] = [
     {
       kind: "SpendActionPoints",
@@ -397,7 +420,7 @@ function resolveStrike(
   const d20Natural = rng.d20();
   const effectiveBonus = actor.attackBonus - attackRollPenalty(actor);
   const attackTotal = d20Natural + effectiveBonus;
-  const targetAc = effectiveAc(
+  const baseTargetAc = effectiveAc(
     flanking && !target.conditions.includes("flat_footed")
       ? {
           ...state,
@@ -412,6 +435,7 @@ function resolveStrike(
       : state,
     action.targetId,
   );
+  const targetAc = baseTargetAc + cover.acBonus;
 
   const wLabel = weaponLabel(actor.damage.count, actor.damage.sides, actor.damage.modifier);
   const hit = attackHits(d20Natural, attackTotal, targetAc);
@@ -442,7 +466,8 @@ function resolveStrike(
         d20Natural,
         attackBonus: effectiveBonus,
         attackTotal,
-        targetAc,
+        targetAc: baseTargetAc,
+        ...(cover.acBonus > 0 ? { coverAcBonus: cover.acBonus } : {}),
         flanking,
         weaponLabel: wLabel,
         damageRolls,
@@ -477,7 +502,8 @@ function resolveStrike(
         d20Natural,
         attackBonus: effectiveBonus,
         attackTotal,
-        targetAc,
+        targetAc: baseTargetAc,
+        ...(cover.acBonus > 0 ? { coverAcBonus: cover.acBonus } : {}),
         flanking,
         weaponLabel: wLabel,
       },
@@ -518,6 +544,17 @@ function resolveCastSpell(
     return { effects: [] };
   }
 
+  const occupied = standingTiles(state);
+  const cover = evaluateCover(
+    state.map,
+    { x: actor.x, y: actor.y },
+    { x: target.x, y: target.y },
+    occupied,
+  );
+  if (!cover.lineOfEffect) {
+    return { effects: [] };
+  }
+
   const effects: AnyEffect[] = [
     {
       kind: "SpendActionPoints",
@@ -530,7 +567,8 @@ function resolveCastSpell(
   const d20Natural = rng.d20();
   const effectiveSpellBonus = actor.spellAttackBonus - attackRollPenalty(actor);
   const attackTotal = d20Natural + effectiveSpellBonus;
-  const targetAc = effectiveAc(state, action.targetId);
+  const baseTargetAc = effectiveAc(state, action.targetId);
+  const targetAc = baseTargetAc + cover.acBonus;
   const wLabel = weaponLabel(spell.damage.count, spell.damage.sides, 0);
   const hit = attackHits(d20Natural, attackTotal, targetAc);
   const damageType = spell.damageType as DamageType;
@@ -555,7 +593,8 @@ function resolveCastSpell(
         d20Natural,
         attackBonus: effectiveSpellBonus,
         attackTotal,
-        targetAc,
+        targetAc: baseTargetAc,
+        ...(cover.acBonus > 0 ? { coverAcBonus: cover.acBonus } : {}),
         flanking: false,
         weaponLabel: `${spell.label}: ${wLabel}`,
         damageRolls,
@@ -584,7 +623,8 @@ function resolveCastSpell(
         d20Natural,
         attackBonus: effectiveSpellBonus,
         attackTotal,
-        targetAc,
+        targetAc: baseTargetAc,
+        ...(cover.acBonus > 0 ? { coverAcBonus: cover.acBonus } : {}),
         flanking: false,
         weaponLabel: `${spell.label}: ${wLabel}`,
       },
@@ -622,6 +662,15 @@ function resolveCastHeal(
     return { effects: [] };
   }
   if (!canTargetAlly(state, action.actorId, action.targetId, spell.rangeTiles)) {
+    return { effects: [] };
+  }
+  if (
+    !hasLineOfEffect(
+      state.map,
+      { x: actor.x, y: actor.y },
+      { x: target.x, y: target.y },
+    )
+  ) {
     return { effects: [] };
   }
   if (!target.downed && target.hp >= target.maxHp) {
@@ -699,10 +748,18 @@ function resolveCastConeSpell(
     return { effects: [] };
   }
 
-  const tiles = coneTiles(actor.x, actor.y, action.targetX, action.targetY, spell.coneLengthTiles);
-  if (!tiles.some((t) => t.x === action.targetX && t.y === action.targetY)) {
+  const rawTiles = coneTiles(actor.x, actor.y, action.targetX, action.targetY, spell.coneLengthTiles);
+  if (!rawTiles.some((t) => t.x === action.targetX && t.y === action.targetY)) {
     return { effects: [] };
   }
+  const tiles = coneTilesWithLineOfEffect(
+    state.map,
+    actor.x,
+    actor.y,
+    action.targetX,
+    action.targetY,
+    spell.coneLengthTiles,
+  );
 
   const slot = findSlotToSpend(actor, action.spellId);
   if (slot === "none") {
@@ -740,8 +797,17 @@ function resolveCastConeSpell(
 
   // Frightened lowers the caster's DC and each target's save (conditions-m10.md).
   const effectiveDc = actor.spellDc - dcPenalty(actor);
+  const occupied = standingTiles(state);
+  const casterTile = { x: actor.x, y: actor.y };
   for (const target of targets) {
-    const effectiveSave = target.saves[saveKind] - savePenalty(target);
+    const coverTier = evaluateCover(
+      state.map,
+      casterTile,
+      { x: target.x, y: target.y },
+      occupied,
+    ).tier;
+    const coverBonus = coverReflexVsAreaBonus(coverTier);
+    const effectiveSave = target.saves[saveKind] - savePenalty(target) + coverBonus;
     const save = rollSave(rng, effectiveSave, effectiveDc);
     const outcomeDamage = basicSaveDamage(baseDamage, save.outcome);
     const adjustment = adjustDamage(target, outcomeDamage, damageType);
@@ -756,7 +822,8 @@ function resolveCastConeSpell(
       saveResolution: {
         saveKind,
         d20Natural: save.d20Natural,
-        saveModifier: effectiveSave,
+        saveModifier: target.saves[saveKind] - savePenalty(target),
+        ...(coverBonus > 0 ? { coverBonus } : {}),
         saveTotal: save.saveTotal,
         dc: effectiveDc,
         outcome: save.outcome,

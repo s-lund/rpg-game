@@ -173,6 +173,16 @@ export function validateContentPack(pack: ContentPack): ValidationResult {
 
   validatePackEncounters(pack, errors);
 
+  for (const [tilesetId, tileset] of Object.entries(pack.tilesets)) {
+    for (const [kind, style] of Object.entries(tileset.kinds)) {
+      if ((style.raised ?? 0) > 0 && !style.blocked) {
+        errors.push(
+          `tileset ${tilesetId} kind "${kind}": raised > 0 requires blocked (M11 walkable cover tiles do not exist)`,
+        );
+      }
+    }
+  }
+
   return errors.length === 0 ? { ok: true } : { ok: false, errors };
 }
 

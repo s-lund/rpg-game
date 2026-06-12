@@ -1,3 +1,4 @@
+import { coverKindFromTileStyle } from "../combat/los";
 import type { ValidationResult } from "../characters/types";
 import type { BattleMapDefinition, BattleTileStyle, BattleTileset } from "./types";
 
@@ -18,6 +19,8 @@ export interface ResolvedBattleMap {
   height: number;
   tiles: ResolvedBattleTile[];
   blocked: { x: number; y: number }[];
+  /** M11 cover tiles derived from tileset raised height — walls and props only. */
+  cover: { x: number; y: number; kind: "wall" | "raised" }[];
   partySpawns: { x: number; y: number }[];
   enemySpawns?: { x: number; y: number }[];
   background?: string;
@@ -109,6 +112,7 @@ export function resolveBattleMap(
 
   const tiles: ResolvedBattleTile[] = [];
   const blocked: { x: number; y: number }[] = [];
+  const cover: { x: number; y: number; kind: "wall" | "raised" }[] = [];
 
   for (let y = 0; y < def.height; y++) {
     for (let x = 0; x < def.width; x++) {
@@ -119,6 +123,12 @@ export function resolveBattleMap(
       if (style.blocked) {
         blocked.push({ x, y });
       }
+      const coverKind = coverKindFromTileStyle(style.blocked, style.raised);
+      if (coverKind === "wall") {
+        cover.push({ x, y, kind: "wall" });
+      } else if (coverKind === "raised") {
+        cover.push({ x, y, kind: "raised" });
+      }
     }
   }
 
@@ -128,6 +138,7 @@ export function resolveBattleMap(
     height: def.height,
     tiles,
     blocked,
+    cover,
     partySpawns: def.partySpawns.map((s) => ({ ...s })),
     enemySpawns: def.enemySpawns?.map((s) => ({ ...s })),
     background: tileset.background,

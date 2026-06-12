@@ -45,6 +45,8 @@ export interface AttackResolution {
   attackBonus: number;
   attackTotal: number;
   targetAc: number;
+  /** Circumstance bonus from cover (M11); effective AC = targetAc + coverAcBonus. */
+  coverAcBonus?: number;
   flanking: boolean;
   weaponLabel: string;
   damageRolls?: number[];
@@ -65,6 +67,8 @@ export interface SaveResolution {
   saveKind: SaveKind;
   d20Natural: number;
   saveModifier: number;
+  /** Reflex cover bonus vs area effects (M11 standard cover +2). */
+  coverBonus?: number;
   saveTotal: number;
   dc: number;
   outcome: SaveOutcome;
@@ -214,6 +218,8 @@ export interface InitialStateConfig {
   party: EntityBlueprint[];
   enemies: EntityBlueprint[];
   blockedTiles?: { x: number; y: number }[];
+  /** M11 per-tile cover from battle maps; omitted on legacy encounters. */
+  coverTiles?: { x: number; y: number; kind: "wall" | "raised" }[];
   /**
    * Seeded RNG for initiative. Provided → turnOrder is the rolled initiative
    * order and the rolls are stored on combat.initiative. Absent → legacy

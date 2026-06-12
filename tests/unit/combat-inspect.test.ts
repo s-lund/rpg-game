@@ -75,4 +75,45 @@ describe("combat inspect", () => {
     const info = inspectTarget(state, "ent_archer", "ent_foe", "strike");
     expect(info?.inRange).toBe(false);
   });
+
+  it("folds prop cover into hit percent and effective AC", () => {
+    const state = createInitialState({
+      width: 5,
+      height: 1,
+      blockedTiles: [{ x: 1, y: 0 }],
+      coverTiles: [{ x: 1, y: 0, kind: "raised" }],
+      party: [
+        {
+          id: "ent_archer" as EntityId,
+          label: "Archer",
+          x: 0,
+          y: 0,
+          maxHp: 20,
+          ac: 16,
+          attackBonus: 10,
+          strikeRange: 6,
+          damage: { count: 1, sides: 6, modifier: 0 },
+        },
+      ],
+      enemies: [
+        {
+          id: "ent_foe" as EntityId,
+          label: "Foe",
+          x: 4,
+          y: 0,
+          maxHp: 12,
+          ac: 16,
+          strikeRange: 1,
+          damage: { count: 1, sides: 4, modifier: 0 },
+        },
+      ],
+    });
+
+    const info = inspectTarget(state, "ent_archer", "ent_foe", "strike");
+    expect(info?.lineOfEffect).toBe(true);
+    expect(info?.coverAcBonus).toBe(2);
+    expect(info?.effectiveAc).toBe(18);
+    expect(info?.coverLabel).toContain("+2 AC");
+    expect(info?.hitPercent).toBe(estimateHitPercent(10, 18));
+  });
 });

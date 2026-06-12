@@ -43,6 +43,8 @@ export class CombatScene {
   private readonly propMeshes: THREE.Mesh[] = [];
   private readonly projectiles: ProjectileVisual[] = [];
   private selectedEntityId: string | null = null;
+  private hoverTargetEntityId: string | null = null;
+  private hoverTargetValid = false;
   private rangeHighlightActorId: string | null = null;
   private rangeHighlightTiles = 0;
   private areaHighlightTiles: { x: number; y: number }[] | null = null;
@@ -188,6 +190,8 @@ export class CombatScene {
     this.projectiles.length = 0;
 
     this.selectedEntityId = null;
+    this.hoverTargetEntityId = null;
+    this.hoverTargetValid = false;
     this.rangeHighlightActorId = null;
     this.areaHighlightTiles = null;
     this.sceneRef.current = null;
@@ -248,6 +252,13 @@ export class CombatScene {
 
   setSelectedEntity(entityId: string | null): void {
     this.selectedEntityId = entityId;
+    this.refreshHighlights();
+  }
+
+  /** Hover reticle for targetable vs blocked-by-cover entities (M11). */
+  setHoverTarget(entityId: string | null, valid: boolean): void {
+    this.hoverTargetEntityId = entityId;
+    this.hoverTargetValid = valid;
     this.refreshHighlights();
   }
 
@@ -436,6 +447,8 @@ export class CombatScene {
       }
       if (id === this.selectedEntityId) {
         mat.emissive.setHex(0x334466);
+      } else if (id === this.hoverTargetEntityId) {
+        mat.emissive.setHex(this.hoverTargetValid ? 0x2a5533 : 0x442222);
       } else {
         mat.emissive.setHex(0x000000);
       }

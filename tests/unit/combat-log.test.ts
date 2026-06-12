@@ -44,6 +44,37 @@ describe("combat log format", () => {
     expect(lines.some((l) => l.includes("11 slashing"))).toBe(true);
   });
 
+  it("formats attack roll with cover AC breakdown", () => {
+    const events: GameEvent[] = [
+      {
+        seq: 1,
+        turn: 1,
+        actorId: "ent_fighter_01",
+        type: "DamageDealt",
+        payload: {
+          target_id: "ent_goblin_01",
+          amount: 0,
+          damage_type: "slashing",
+          hp_after: 12,
+          from_effect: "eff_miss",
+          attack_resolution: {
+            hit: false,
+            d20Natural: 7,
+            attackBonus: 10,
+            attackTotal: 17,
+            targetAc: 16,
+            coverAcBonus: 2,
+            flanking: false,
+            weaponLabel: "1d6",
+          },
+        },
+        derivedFrom: "act_strike",
+      },
+    ];
+    const lines = formatCombatLogBatch(events, ctx);
+    expect(lines[0]).toContain("vs AC 16 +2 cover = 18 — MISS");
+  });
+
   it("formats miss with attack roll only", () => {
     const events: GameEvent[] = [
       {
