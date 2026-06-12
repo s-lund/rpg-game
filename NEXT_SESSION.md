@@ -1,130 +1,160 @@
-# Next session prompt (copy into a new chat)
+# Next session — M13 DESIGN DISCOVERY (read this whole file before doing anything)
 
-M12 **Phase A is DONE** (2026-06-12): the utility-scoring AI framework, its frozen behavior contracts, and the RAW Reactive Strike trigger closure are committed — 280 tests green across 49 files, build clean. Enemies already play the punishing baseline. This file is now the **PHASE B** handoff: a standard-model session that authors per-archetype personality as DATA against the Phase A framework, wires it into content, and finishes the renderer/log/overlay surface. Do not redesign the framework.
+> **This is not an implementation loop.** Previous `NEXT_SESSION.md` files were build prompts with
+> STEP 0…N and a gate. This one is different on purpose. The next session is a **design conversation**
+> — a long, deliberate **Q&A** — to figure out the *high-level core loop*: the thing that makes this
+> game good, or not. **Write no game code and no contract tests this session.** The only files you
+> may create/edit are design docs (`DESIGN.md`, `ROADMAP.md`, `PROGRESS.md`, and finally this file).
+>
+> **Model: premium.** This is the most load-bearing design call on the board — it sets what M13
+> builds and may reorder the roadmap. Cost discipline does not apply to thinking here.
 
-## PHASE B — standard model (archetype profiles, content, renderer)
+---
 
-```
-Continue EMBERWATCH development. Read AGENTS.md, ARCHITECTURE.md, ROADMAP.md, and PROGRESS.md first.
+## Status check before you start
 
-State: M0–M11 are DONE and human-accepted; M12 Phase A (premium) is committed — AI scoring framework,
-frozen behavior contracts (tests/contract/ai-behavior.test.ts), RAW reaction triggers closed
-(tests/contract/reactions-raw.test.ts). This is M12 PHASE B: author archetype AI profiles as DATA,
-wire them into both content packs, and ship the renderer/log/overlay polish. NO framework redesign,
-NO new scorer components unless a profile brief literally cannot be expressed (escalate to the human
-instead of improvising). NEVER touch tests/contract/.
+- **M12 is gate-1 done but NOT yet human-accepted.** Phase A is committed (`2fb1a44`); Phase B is
+  committed alongside this file. 290 tests green / 51 files, build clean, all `tests/contract/`
+  untouched. **The human deferred the M12 playtest** — the gate-2 LOOK checklist and the stop signal
+  in `PROGRESS.md` (M12 section) are still owed. If the human wants to do that playtest first, help
+  with that before opening the design conversation. Do **not** treat M12 as accepted.
+- **Do not start M13 implementation.** M13's nominal scope is "Strategic pressure, campaign AI +
+  win/lose" (`ROADMAP.md`). This session decides *whether that's even the right shape* and what it
+  should feel like — before a line of it is written.
 
-STEP 0 — Baseline. npm run test (expect 280 green across 49 files) and npm run build (clean) before
-changing anything. (Node 24: on this machine npm may not be on the shell PATH — it lives at
-%LOCALAPPDATA%\Microsoft\WinGet\Packages\OpenJS.NodeJS.LTS_*\node-v24.16.0-win-x64; prepend to PATH.)
+---
 
-THE PHASE A FRAMEWORK API (all pure core, exported from src/core/index.ts):
+## The mandate (in the human's words, paraphrased)
 
-  - chooseEnemyAction(state, actorId): Action | null — unchanged signature; renderer already wired.
-    Delegates to chooseAiAction (src/core/ai/choose.ts), which works for EITHER team (AI-vs-AI tests
-    drive heroes through it). Deterministic: pure function of state, no RNG, stable tie-breaking
-    (registry order strike → cast → move → stand → end-turn, then each family's internal order;
-    first candidate at the maximum total wins — documented in ai/choose.ts).
-  - enumerateAiCandidates(state, actorId, profileId?): ScoredAiCandidate[] — every candidate with
-    its score/total/endTile; use it for debugging profiles, never re-implement scoring.
-  - Profile schema (src/core/ai/profile.ts): AiProfile { id, label, weights: AiWeights, retreat?:
-    AiRetreat }. AiWeights components (all documented in the file): expectedDamage, killSecure,
-    focusFire, expectedHealing, aooRisk, coverSeek, meleeZoneAvoid, approach, flank, standUp.
-    AiRetreat { hpFraction, approachMultiplier, coverSeekMultiplier } — below hpFraction of max HP,
-    approach is multiplied by approachMultiplier (negative = pull back) and coverSeek by
-    coverSeekMultiplier. BASELINE_PROFILE is the shipped punishing default; AI_PROFILES is the
-    registry — adding a profile is one data entry there, nothing else.
-  - Entity.aiProfileId / EntityBlueprint.aiProfileId (optional string) is already threaded through
-    state creation; absent → "baseline". Content sets it per archetype.
-  - perceivableTargets(state, actorId) (src/core/ai/perception.ts) is the target-enumeration seam —
-    do not bypass it anywhere.
-  - Action families live in src/core/ai/families/* and are registered ONLY in src/core/ai/registry.ts.
-    A new action kind in the future = one new family module + one registry line. You should not need
-    to touch these for Phase B.
-  - Reaction predicates shared by resolver and AI: src/core/combat/reactions.ts
-    (meleeReactorsInReach, moveReactionTriggers, canReact, isManipulateSpell).
-  - Movement enumeration: reachableStepTargets (src/core/combat/path.ts) — resolver-identical
-    passability/cost. Expected-value helpers: estimateHitPercent/damageBand (combat/attack.ts),
-    expectedBasicSaveFactor (combat/save.ts), evaluateCover/coverAcBonus (combat/los.ts).
+> "This is about the core game mechanic — the high-level one. From my perspective, the thing that
+> makes the game good… or not. Let the next session be about figuring this out. A lot of Q&A to get
+> there."
 
-STEP 1 — Author archetype profiles as DATA in src/core/ai/profile.ts (AI_PROFILES), tuning weights
-relative to BASELINE_PROFILE. Add a small unit test per profile (tests/unit/, NOT contract) showing
-its signature behavior on a scripted board (reuse the terrain()/enemyActs() helper pattern from
-tests/contract/ai-behavior.test.ts). Briefs:
-  (a) "skirmisher" — kite to cover and shoot the squishiest reachable hero: coverSeek and
-      meleeZoneAvoid well above baseline, focusFire up, aooRisk up a touch (disengages early),
-      retreat { hpFraction ~0.4, approachMultiplier ~-1, coverSeekMultiplier ~2 }.
-  (b) "bruiser" — corridor-blocking, body-block chokepoints, deliberate AoO zoning: meleeZoneAvoid
-      at or below 0 (standing in hero reach is the job), aooRisk low (provoking is acceptable),
-      approach and flank up, killSecure up. No retreat — bruisers die forward.
-  (c) "caster" — save-targeting debuff opener then damage. NOTE: no enemy casters exist in content
-      yet, and hero spells are the only spells in the rules subset. Scope honestly: give the profile
-      expectedDamage/aooRisk emphasis suited to a backline caster (high aooRisk, high coverSeek,
-      meleeZoneAvoid high) and wire it to a NEW enemy caster archetype only if you also give that
-      archetype a castable spell from the existing subset (e.g. knownSpells: ["ray_of_frost"] plus
-      spellAttackBonus/spellDc on the blueprint — the cast family already generates and prices
-      these). Real debuff spells are M17; do not invent new spell mechanics.
-  (d) "wounded" — pull back behind cover below a threshold: baseline weights plus retreat
-      { hpFraction ~0.5, approachMultiplier ~-1.5, coverSeekMultiplier ~2.5 }. This is a PROFILE,
-      assignable to any archetype; in content use it where the fiction fits (e.g. marsh stalkers).
+So: step **back** from the milestone checklist. The engine works — party, world map, districts,
+tactical PF2e combat with smart AI, reclamation. What it does **not** yet have is a *reason to care*:
+no stakes (you can't win or lose), no pressure (nothing pushes back), no rewards, no story. M13–M16
+are supposed to supply those. Before building the first of them, settle the question underneath all
+of them: **what is the loop that makes a play session compelling, and what would make it hollow?**
 
-STEP 2 — Content wiring in BOTH packs (src/content/emberwatch/encounters.ts has the foe() factory
-with FoeRole = melee | skirmisher | bruiser | boss; mirrormarsh has its own pack.ts): map role →
-aiProfileId on the EntityBlueprint (skirmisher → "skirmisher", bruiser → "bruiser", melee/boss →
-"baseline" unless a brief fits better). If you add an enemy caster archetype for (c), it needs
-spawns in at least one encounter per pack and must pass the pack validator.
+---
 
-STEP 3 — Renderer/log/overlay (read-only consumers; no core changes):
-  - Combat log: a line when a cast is disrupted — the reaction Damage event payload carries
-    attack_resolution.disruptedCast { spellId, spellLabel } (and .reactionBy for who did it).
-    Surface it clearly (e.g. "CRITICAL! The Strike disrupts Heal — the spell is lost.").
-    Also log lines for the new provoke reasons read naturally (shooting/casting/standing in reach)
-    — the events are ordinary ReactionSpent + DamageDealt, already logged; check wording.
-  - Dev overlay: REMOVE the m10_aoo_trigger_subset flag (closed in Phase A), ADD m12_tactical_ai
-    and m12_raw_reactions entries; M12 console banner like earlier milestones.
-  - Hover inspector: unchanged (cover/save/hit% already shared with the AI's math).
+## How to run this session
 
-STEP 4 — Playtest staging: ensure at least one EARLY encounter (tier 1–2, reachable in the first
-minutes of a campaign) where each shipped archetype's behavior is readable within two turns —
-a skirmisher map with props to kite behind, a bruiser corridor/chokepoint, and (if added) a caster
-hanging back. Adjust encounter layouts/spawns in content, not core. The M11 WATCH ITEM also applies:
-stage wall-cover sightlines where battle maps allow.
+**Socratic, not a pitch.** Your job is to *interrogate*, not to propose a design and seek approval.
+Use the `AskUserQuestion` tool for focused, multiple-choice-where-it-helps batches; ask **one theme
+at a time**; reflect each answer back in your own words before moving on; chase the *why* under every
+answer; surface tensions and trade-offs the human may not have noticed. Expect many rounds. Do not
+rush to a plan. You are done discovering only when you can state the core loop in a few sentences and
+the human says "yes, that's it."
 
-STEP 5 — Gate: npm run test fully green (280 + your new unit tests; every tests/contract/ file
-UNTOUCHED), npm run build clean. Playtest each staged encounter once yourself headlessly if possible
-(AI-vs-AI via chooseAiAction both sides is a fine smoke test).
+**Anchor on the design DNA and its three genre touchstones** (from `ROADMAP.md` / `AGENTS.md`):
+- the pitch — *"reclaim a ruined frontier city, district by district, with a difficulty gradient
+  running inward,"* original setting on Pathfinder 2e (ORC) rules;
+- **XCOM** — the *tactical fight* is the product; campaign frames a string of tense setpieces;
+- **Battle Brothers** — *attrition and a living world*: a clock, escalating pressure, a roster,
+  harsh setbacks, permadeath;
+- **Baldur's Gate 1/2** — an *authored story arc*: reclamation is the spine of a narrative, and
+  "winning" is a climax.
 
-M12 GATE-2 CHECKLIST (human acceptance):
-  - LOOK: skirmishers kite to cover and shoot the squishiest reachable hero.
-  - LOOK: bruisers body-block corridors and trigger AoOs deliberately; they don't dither.
-  - LOOK: wounded-profile enemies pull back behind cover when hurt.
-  - LOOK: shooting or casting next to a melee enemy eats a Reactive Strike; a crit visibly
-    disrupts the cast in the combat log (slot lost).
-  - LOOK: each archetype reads differently within a couple of turns in the staged encounters.
-  - OVERLAY: m10_aoo_trigger_subset gone; m12_tactical_ai + m12_raw_reactions present.
-  - TEST: npm run test — all green, contract files untouched.
-Then STOP and print the stop signal: "M12 done. Lose a fight you'd have won against the old AI,
-and say why the enemy played well."
+The pivotal question is which of those is the **beating heart** the campaign layer must serve (or
+what blend, and in what ratio) — because each implies a *different* M13. Don't let the human answer
+"all three" without forcing the priority: what is sacrificed first when they conflict?
 
-Known Phase A simplifications you may surface in the overlay but must NOT "fix" in core:
-  - Crit detection exists ONLY to gate manipulate disruption; critical double damage is unmodeled
-    game-wide (M1 attack model) — recorded in rules/srd/reactive-strike.md M12 scope.
-  - The resolver computes an interrupted action from the pre-action snapshot (HP chains, condition
-    riders land after) — documented there too.
-  - Move scoring's follow-up lookahead considers weapon strikes and single-target attack spells,
-    not cone/heal follow-ups; AoO disruption-risk is priced as damage only. Fine for Phase B
-    profiles; note for M17.
-  - The AI's kill probability treats damage as uniform over the adjusted min/max band and ignores
-    rogue sneak-attack dice (no enemy rogues exist).
+---
 
-Key architecture (do not regress):
-- src/core stays pure and headless; renderers are read-only event-log/state consumers; referential integrity by ID.
-- One Effect → one Event; state mutates only via apply(); new effect kinds extend AnyEffect (never the frozen Effect union / ALL_EFFECT_KINDS) and need effectFromEvent replay cases + their own contract tests. (Disruption should NOT need a new effect kind — dropping a disrupted cast's effects happens at resolution, before effects exist; verify against the frozen pipeline test.)
-- The AI is a pure function (state) → Action riding the normal pipeline — no privileged mutation, no hidden state, no RNG; replay never needs AI events.
-- Entity.conditions is the frozen M1 bare-id mirror over activeConditions — both maintained ONLY in apply.ts (M10 pattern).
-- Initiative comes from a seed on CombatSession; replay rebuilds the initial state with the same seed — never emit initiative events.
-- Cover/LoS math lives ONLY in src/core/combat/los.ts — AI, resolver, and inspector all call the same helpers (M11 pattern).
-- Never block on missing art: flagged placeholder + ASSETS_NEEDED.md row.
+## The question agenda (a starting map, not a script — follow the human where it goes)
 
-One phase per loop. M12 ends at the gate-2 checklist above — do not start M13.
-```
+1. **The one-sentence fantasy.** When this game is at its best, what is the player *feeling* and
+   *doing*? Finish: "EMBERWATCH is great when the player is ______." Then: what's the smallest unit
+   of that feeling — a single fight? a single hard choice on the map? a whole district reclaimed?
+
+2. **Beating heart.** Force the XCOM / Battle Brothers / BG priority above. When the tactical layer,
+   the attrition layer, and the story layer pull in different directions, which wins? What gets cut?
+
+3. **The three time-scales of the loop.** Make them concrete:
+   - the **10-minute** loop (one fight / one map decision) — what's the tension?
+   - the **1-hour** loop (a play session) — what did the player accomplish, risk, and carry forward?
+   - the **whole-campaign** arc — what's the shape from first frontier to ending?
+
+4. **What "winning" means.** (M13 + ties M16's story fiction.) Hold every district? A final
+   site/boss? A story objective? Is there one ending or several? What does the victory screen
+   actually celebrate?
+
+5. **What "losing" means, and why it should sting.** Party wipe? Losing your last foothold? The
+   clock running out? Is loss a *fail-state* (game over) or *erosion* (you can be ground down
+   slowly)? Is permadeath in the core fantasy or an optional dial (M19)?
+
+6. **Pressure and the clock.** (The M13 mechanism.) What pushes back, and on what does time advance
+   — travel steps? per fight? rest? Can held sites be threatened and fall? Can *safe havens* fall,
+   or are they sacrosanct? How harsh is recapture — a full re-fight or a weakened garrison? The aim
+   is tension that makes reclaiming *this* site matter, without the clock feeling like an arbitrary
+   timer or punishing exploration.
+
+7. **Why care about any single site?** Today every site is mechanically interchangeable terrain.
+   What makes the player *want* this district over that one — a reward, a story beat, a strategic
+   chokehold, a recruit, relief of pressure elsewhere?
+
+8. **The anti-goals — "or not."** Name the failure modes to design against, explicitly: snowballing
+   (winning makes you stronger makes winning easier), busywork/grind, fake difficulty (stat-cheating
+   enemies), an anticlimactic ending, a clock that just nags, decisions without consequences. The
+   human's "…or not" is half the brief — capture it.
+
+9. **Scope and ordering.** Given the answers, is **M13 (strategic pressure + win/lose)** truly the
+   right next build, or does the core-loop answer pull something forward (economy/M14, progression
+   /M15, story/M16) or reshape M13's contents? Decide the next *build* milestone deliberately.
+
+---
+
+## What you must respect (constraints the design cannot break)
+
+The architecture is load-bearing and non-negotiable (`AGENTS.md`, `ARCHITECTURE.md`) — whatever you
+design has to live inside it:
+- the deterministic rules/campaign engine is the single source of truth; all state changes flow
+  through the action/effect → event pipeline; `campaign-apply.ts` is the campaign-side pipeline.
+- strategic AI / campaign clock must be a **pure function over campaign state**, serialized and
+  replayable from the event log; old saves migrate via a serialize version bump.
+- core stays headless; renderer/narrator are read-only consumers; `tests/contract/` is frozen.
+
+Flag any design idea that would require breaking one of these, and find the in-architecture version.
+
+---
+
+## Deliverables of THIS session (design only)
+
+1. **`DESIGN.md` (new)** — the core-loop vision record: the one-sentence fantasy, the beating-heart
+   priority, the three time-scale loops, the win/lose definition, the anti-goals. This is the
+   north-star doc later milestones answer to. Keep it tight — vision and decisions, not a spec dump.
+2. **Fold the M13-specific resolutions** into `ROADMAP.md` under M13's "Clarify first" as a dated
+   *"resolved"* block (the pattern M9–M12 used), and adjust the M13 "Goal/You can try" if the heart
+   answer reshaped it. Reorder later milestones if the human chose to.
+3. **Rewrite this file (`NEXT_SESSION.md`)** into the actual **M13 implementation brief** — a normal
+   build prompt (STEP 0 baseline → contract-test-first build → gate), now that the design is locked.
+   Note the model tier M13 wants (premium for the campaign-clock contract + strategic AI; standard
+   for UI, per the roadmap).
+4. **Update `PROGRESS.md`** "Current milestone" / "Last updated" to reflect that the design pass is
+   done and M13 is ready to build (and that M12's gate-2 playtest may still be outstanding).
+
+**Human sign-off gate:** do not write `DESIGN.md` as settled, fold anything into the roadmap as
+"resolved," or write the M13 build brief until the human explicitly agrees the core loop is right.
+Until then, keep asking. **No contract test gets written this session.**
+
+---
+
+## Orientation (read first)
+
+- `AGENTS.md`, `ARCHITECTURE.md`, `ROADMAP.md` (esp. M13 + the Phase-2 framing), `PROGRESS.md`
+  (current state; M12 gate-2 still owed). These ground the conversation in what the game *is* today
+  so the design starts from reality, not a blank page.
+- The game today, in one breath: create a 4-hero party (Fighter/Rogue/Wizard/Cleric) → BG-style
+  overworld → enter world sites or multi-level districts → tactical PF2e combat (smart per-archetype
+  AI, saves/cover/conditions/reactions) → victory flips sites hostile→held → reclaim the frontier on
+  an inward difficulty gradient. HP carries over; spell slots refill at safe havens (interim). There
+  is **no** campaign clock, **no** win/lose, **no** economy, **no** XP/levels, **no** story yet.
+- If you want to *feel* the current loop before designing on top of it: `npm run dev`. On this
+  machine npm isn't on PATH — it lives at
+  `%LOCALAPPDATA%\Microsoft\WinGet\Packages\OpenJS.NodeJS.LTS_*\node-v24.16.0-win-x64` (prepend to
+  PATH). (This session writes no code, but playing it is good design fuel — and you can also run the
+  outstanding M12 gate-2 playtest while you're there.)
+
+One session. End when the core loop is articulated, the human agrees, the design docs are written,
+and this file has become the M13 build brief — not before.

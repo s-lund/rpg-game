@@ -132,6 +132,14 @@ function formatAttackResolution(event: GameEvent, ctx: NarrationContext): string
     lines.push(`  ${target} takes no damage${adjustmentNote(event)}`);
   }
 
+  // M12: a critical Reactive Strike disrupts a manipulate-trait cast — the
+  // spell's effects were dropped at resolution; its slot and AP stay spent.
+  if (res.disruptedCast) {
+    lines.push(
+      `  CRITICAL! The Reactive Strike disrupts ${res.disruptedCast.spellLabel} — the spell is lost.`,
+    );
+  }
+
   return lines;
 }
 
@@ -209,8 +217,10 @@ export function formatCombatLogBatch(events: GameEvent[], ctx: NarrationContext)
         break;
       }
       case "ReactionSpent": {
+        // M12: triggered by leaving reach OR shooting/casting/standing in reach
+        // (reactions-raw.test.ts) — the generic phrasing reads for every case.
         const who = label(ctx, String(event.payload.entity_id));
-        lines.push(`${who}'s reaction — Attack of Opportunity:`);
+        lines.push(`${who}'s reaction — Reactive Strike:`);
         break;
       }
       case "DamageDealt": {

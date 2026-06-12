@@ -2,8 +2,8 @@
 
 Build progress for EMBERWATCH. Milestone definitions live in `ROADMAP.md`.
 
-**Current milestone:** M12 in progress — **Phase A committed** (2026-06-12: utility-scoring AI framework + frozen behavior contracts in `tests/contract/ai-behavior.test.ts`, RAW Reactive Strike trigger closure in `tests/contract/reactions-raw.test.ts`; 280 tests green, build clean). Phase B (standard model: archetype profiles, content wiring, renderer/log/overlay) is next — prompt in `NEXT_SESSION.md`. Gate 2 runs after Phase B. Clarifications resolved 2026-06-12 under M12 in `ROADMAP.md`.  
-**Last updated:** 2026-06-12 — M12 Phase A committed (gate 2 pending after Phase B)
+**Current milestone:** M12 — **gate 1 (tests) DONE, gate 2 NOT yet human-tested.** Both phases delivered (Phase A committed `2fb1a44`; Phase B this session: archetype profiles, content wiring, renderer/log/overlay). 290 tests green / 51 files, build clean, every `tests/contract/` file untouched. The human **deferred the playtest** (2026-06-12) — the gate-2 LOOK checklist and the stop signal are still owed before M12 is accepted. **M13 is next, approached DESIGN-FIRST:** a Q&A session to settle the high-level core loop ("what makes the game good — or not") before any code — see `NEXT_SESSION.md`.  
+**Last updated:** 2026-06-12 — M12 Phase B delivered (290 green, build clean); **gate 2 pending — not tested by human yet.**
 
 ---
 
@@ -23,7 +23,7 @@ Build progress for EMBERWATCH. Milestone definitions live in `ROADMAP.md`.
 | M9 Combat rules depth | **done** | pass | accepted |
 | M10 Initiative, reactions + conditions | **done** | pass | accepted |
 | M11 Line of sight, cover + friendly fire | **done** | pass | accepted |
-| M12 Smart tactical AI | pending | — | — |
+| M12 Smart tactical AI | **gate 1 done** | pass | **not tested yet** |
 | M13 Strategic pressure + win/lose | pending | — | — |
 | M14 Equipment, inventory, loot + economy | pending | — | — |
 | M15 Progression: XP + levels | pending | — | — |
@@ -168,3 +168,19 @@ Built as two sessions: **Phase A** (premium model, commit `0399715`) froze the g
 **Gate 1:** `npm run test` (258 tests, 47 files) — frozen `los-cover.test.ts` + new `cover-resolution.test.ts`; all earlier frozen contract tests unchanged. `npm run build` clean.
 
 **Gate 2:** accepted 2026-06-12 — playtested; prop/creature cover, cone clipping, and blocked-target UX showed well. **Caveat / WATCH ITEM:** the shipped battle maps rarely put freestanding walls between spawns and firing lines, so corner-aware *wall* cover was hard to exercise in play — accepted on the frozen geometry contract; stage wall-cover sightlines when battle-map variety grows (recorded under M11 in `ROADMAP.md`, M17 at the latest).
+
+---
+
+## M12 — gate 1 done (2026-06-12); gate 2 NOT yet tested by human
+
+Built as two sessions: **Phase A** (premium model, commit `2fb1a44`) shipped the utility-scoring AI framework, frozen behavior contracts, and the RAW Reactive Strike trigger closure. **Phase B** (standard-model session, this work) authored the per-archetype profiles as data, wired them into both content packs, and finished the renderer/log/overlay surface. No framework redesign.
+
+**Delivered (Phase A, recap):** utility-scoring chooser `chooseAiAction` (enumerate → score → pick; pure, deterministic, no RNG) with action families registered in `src/core/ai/registry.ts`; profile schema + `BASELINE_PROFILE`; `perceivableTargets` perception seam; frozen `tests/contract/ai-behavior.test.ts` (behavior properties) and `tests/contract/reactions-raw.test.ts` (Reactive Strike closed to full RAW — shooting/casting/standing in reach provoke, a crit disrupts a manipulate cast with slot + AP still spent).
+
+**Delivered (Phase B):** Four archetype AI profiles as DATA in `src/core/ai/profile.ts` (`AI_PROFILES`), tuned against `BASELINE_PROFILE` — `skirmisher` (coverSeek/meleeZoneAvoid/focusFire up, retreat <40% HP), `bruiser` (`meleeZoneAvoid: -1` body-block, low aooRisk, no retreat — dies forward), `caster` (backline: high aooRisk/coverSeek/meleeZoneAvoid, expectedDamage up; scoped honestly to `ray_of_frost`, no new spell mechanics), `wounded` (baseline until <50% HP, then approach ×−1.5 / coverSeek ×2.5). Content wiring: emberwatch `foe()` maps role → `aiProfileId` (+ explicit `aiProfile` override) and gains a `caster` role — new **Spire Adept** (Ray of Frost) in the Great Hall; cowardly **Market Looters** → `wounded`. Mirrormarsh **Bog Stalkers** (ranged) → `wounded`; new **Mire Chanter** caster in the Grain Vault. Staging: a freestanding wall pylon added to `bmap_watchers_bridge` (Bridge Warden chokepoint **and** the M11 wall-cover-sightline watch item). Renderer/log/overlay (read-only consumers, no rules change): combat log prints the critical-Reactive-Strike cast-disruption line (`disruptedCast`) and the M12 "Reactive Strike" wording; dev overlay drops `m10_aoo_trigger_subset`, adds `m12_tactical_ai` + `m12_raw_reactions` (+ a `m12_crit_disruption_scope` honesty flag); M12 console banner.
+
+**Gate 1:** `npm run test` (290 tests, 51 files) — new `tests/unit/ai-profiles.test.ts` (6, per-profile signatures via the explicit `profileId` arg) and `tests/unit/ai-staging-smoke.test.ts` (4, AI-vs-AI run to completion through the staged encounters; asserts profiles reach the right entities and the wired enemy casters actually cast); all `tests/contract/` files **UNTOUCHED**. `npm run build` clean.
+
+**Known Phase A simplifications (flagged, NOT fixed in core):** crit detection gates manipulate-cast disruption only — critical double damage stays unmodeled game-wide (`m12_crit_disruption_scope`); interrupted action computed from the pre-action snapshot; move-scoring lookahead prices AoO disruption-risk as damage only; kill-probability treats damage as uniform over the band. Full list in `rules/srd/reactive-strike.md` (M12 scope) and the Phase A handoff.
+
+**Gate 2:** **NOT yet tested — human deferred the playtest (2026-06-12).** Still owed before M12 is accepted: LOOK — skirmishers kite to cover and shoot the squishiest; bruisers body-block corridors and trigger AoOs deliberately; wounded enemies pull back behind cover when hurt; shooting/casting next to a melee enemy eats a Reactive Strike and a crit disrupts the cast in the log (slot lost); each archetype reads differently within two turns. OVERLAY — `m10_aoo_trigger_subset` gone, `m12_tactical_ai` + `m12_raw_reactions` present. Then the stop signal: *"M12 done. Lose a fight you'd have won against the old AI, and say why the enemy played well."*

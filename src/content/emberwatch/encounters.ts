@@ -1,7 +1,7 @@
 import type { EncounterId } from "../../shared/ids";
 import type { DamageType, EncounterTemplate, EntityBlueprint, SaveKind } from "../../core/index";
 
-type FoeRole = "melee" | "skirmisher" | "bruiser" | "boss";
+type FoeRole = "melee" | "skirmisher" | "bruiser" | "boss" | "caster";
 
 /** Elemental theming (M9): ember creatures resist fire / fear cold; drowned the reverse. */
 type FoeTheme = "ember" | "drowned";
@@ -12,6 +12,28 @@ interface FoeOptions {
   theme?: FoeTheme;
   /** Override the role's default on-hit condition (M10). */
   onHit?: EntityBlueprint["onHitCondition"];
+  /** Override the role's default M12 AI profile (e.g. cowardly melee → "wounded"). */
+  aiProfile?: string;
+}
+
+/**
+ * M12 Phase B: role → tactical AI profile (src/core/ai/profile.ts). Skirmishers
+ * kite, bruisers body-block, casters hang back; melee and bosses play the
+ * punishing baseline (undefined → "baseline"). An explicit options.aiProfile
+ * overrides the role default where the fiction calls for it.
+ */
+function foeProfile(role: FoeRole, options?: FoeOptions): Pick<EntityBlueprint, "aiProfileId"> {
+  if (options?.aiProfile) return { aiProfileId: options.aiProfile };
+  switch (role) {
+    case "skirmisher":
+      return { aiProfileId: "skirmisher" };
+    case "bruiser":
+      return { aiProfileId: "bruiser" };
+    case "caster":
+      return { aiProfileId: "caster" };
+    default:
+      return {}; // melee, boss → baseline
+  }
 }
 
 /** Tier-scaled save modifiers by role — skirmishers dodge, bruisers endure. */
@@ -23,6 +45,8 @@ function foeSaves(role: FoeRole, tier: number): Record<SaveKind, number> {
       return { fortitude: 5 + tier, reflex: 2 + tier, will: 3 + tier };
     case "boss":
       return { fortitude: 5 + tier, reflex: 4 + tier, will: 5 + tier };
+    case "caster":
+      return { fortitude: 2 + tier, reflex: 3 + tier, will: 5 + tier };
     default:
       return { fortitude: 4 + tier, reflex: 3 + tier, will: 2 + tier };
   }
@@ -46,6 +70,8 @@ function foeInitiative(role: FoeRole, tier: number): number {
     case "bruiser":
       return 2 + tier;
     case "boss":
+      return 4 + tier;
+    case "caster":
       return 4 + tier;
     default:
       return 3 + tier;
@@ -78,8 +104,27 @@ function foe(
     initiativeModifier: foeInitiative(role, tier),
     ...foeTheme(options?.theme),
     ...foeOnHit(role, options),
+    ...foeProfile(role, options),
   };
   switch (role) {
+    case "caster":
+      return {
+        id,
+        label,
+        x,
+        y,
+        // Squishy backline: low HP/AC, a weak melee jab, and a ranged cantrip.
+        maxHp: 7 + tier,
+        ac: 13 + tier,
+        attackBonus: 3 + tier,
+        strikeRange: 1,
+        damageType: options?.damageType ?? "cold",
+        damage: { count: 1, sides: 4, modifier: 0 },
+        knownSpells: ["ray_of_frost"],
+        spellAttackBonus: 5 + tier,
+        spellDc: 14 + tier,
+        ...shared,
+      };
     case "skirmisher":
       return {
         id,
@@ -168,8 +213,10 @@ export const EMBERWATCH_ENCOUNTERS: Record<EncounterId, EncounterTemplate> = {
     height: 12,
     battleMapId: "bmap_cinder_market",
     enemies: [
-      foe("ent_market_looter_1", "Market Looter", 2, 3, 3),
-      foe("ent_market_looter_2", "Market Looter", 2, 8, 7),
+      // Looters break and run for the carts once bloodied (wounded profile);
+      // the captain holds the line (bruiser).
+      foe("ent_market_looter_1", "Market Looter", 2, 3, 3, { aiProfile: "wounded" }),
+      foe("ent_market_looter_2", "Market Looter", 2, 8, 7, { aiProfile: "wounded" }),
       foe("ent_looter_captain_1", "Looter Captain", 2, 5, 3, { role: "bruiser" }),
     ],
   },
@@ -251,6 +298,8 @@ export const EMBERWATCH_ENCOUNTERS: Record<EncounterId, EncounterTemplate> = {
       foe("ent_hall_sentinel_1", "Bell Sentinel", 2, 4, 3),
       foe("ent_hall_sentinel_2", "Bell Sentinel", 2, 7, 3),
       foe("ent_hall_acolyte_1", "Spire Acolyte", 2, 6, 7, { role: "skirmisher" }),
+      // Backline frost-caster, hangs behind the pillar line and rays the softest hero.
+      foe("ent_hall_adept_1", "Spire Adept", 2, 6, 2, { role: "caster" }),
     ],
   },
   enc_broken_stair: {

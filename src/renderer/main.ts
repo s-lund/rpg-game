@@ -472,7 +472,7 @@ function buildAcceptanceItems() {
       id: "m10_reactive_strike",
       label: "Attack of Opportunity both ways (house rule: all melee)",
       proof: "visual" as const,
-      how: "stand next to a melee enemy and walk away — the log shows '…'s reaction — Attack of Opportunity'; lure an enemy past your melee Rogue and it provokes hers (⚡ marks ready reactions)",
+      how: "stand next to a melee enemy and walk away — the log shows '…'s reaction — Reactive Strike'; lure an enemy past your melee Rogue and it provokes hers (⚡ marks ready reactions)",
     },
     {
       id: "m10_conditions",
@@ -658,9 +658,17 @@ function init(): void {
     "m10_reactive_strike",
     "M10 Attack of Opportunity — HOUSE RULE: every melee-armed combatant threatens, once per round",
   );
+  presence.registerRendered(
+    "m12_tactical_ai",
+    "M12 utility-scoring tactical AI (src/core/ai) — per-archetype profiles (skirmisher kites, bruiser body-blocks, caster hangs back, wounded retreats); pure function of state, no RNG",
+  );
+  presence.registerRendered(
+    "m12_raw_reactions",
+    "M12 Reactive Strike triggers closed to full RAW — shooting/casting/standing in a melee threat's reach provokes; a critical reaction disrupts a manipulate cast (slot + AP lost)",
+  );
   presence.registerProcedural(
-    "m10_aoo_trigger_subset",
-    "Reactive Strike fires only on leaving reach during a move — manipulate/ranged triggers and crit move-disruption out of M10 scope",
+    "m12_crit_disruption_scope",
+    "crit detection exists ONLY to gate manipulate-cast disruption — critical double damage stays unmodeled game-wide (M1 attack model); see rules/srd/reactive-strike.md M12 scope",
   );
   presence.registerProcedural(
     "m10_hp_cushion",
@@ -1636,7 +1644,7 @@ function init(): void {
       startCombat,
     };
     console.info(
-      "[EMBERWATCH] M11 — line of sight, cover + friendly fire (corner-sampled LoS, prop/creature cover, cone clipped by walls); F3/~ overlay",
+      "[EMBERWATCH] M12 — smart tactical AI (utility scoring; skirmishers kite, bruisers body-block, casters hang back, wounded retreats) + RAW Reactive Strikes (shoot/cast/stand in reach provoke; crit disrupts a cast); F3/~ overlay",
       { manifestSummary, selectedPackId },
     );
   }

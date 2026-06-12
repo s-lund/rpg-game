@@ -69,9 +69,102 @@ export const BASELINE_PROFILE: AiProfile = {
   },
 };
 
+/**
+ * Skirmisher (M12 Phase B brief a): kite to cover and shoot the squishiest
+ * reachable hero. coverSeek and meleeZoneAvoid well above baseline so it keeps
+ * out of melee and behind props; focusFire up so it piles onto the softest
+ * target; aooRisk up a touch so it disengages early rather than eating a
+ * Reactive Strike. Retreats and clings harder to cover below 40% HP.
+ */
+export const SKIRMISHER_PROFILE: AiProfile = {
+  id: "skirmisher",
+  label: "Kiting skirmisher",
+  weights: {
+    expectedDamage: 1,
+    killSecure: 4,
+    focusFire: 2,
+    expectedHealing: 1,
+    aooRisk: 0.6,
+    coverSeek: 2,
+    meleeZoneAvoid: 3,
+    approach: 1,
+    flank: 0.75,
+    standUp: 3,
+  },
+  retreat: { hpFraction: 0.4, approachMultiplier: -1, coverSeekMultiplier: 2 },
+};
+
+/**
+ * Bruiser (M12 Phase B brief b): body-block chokepoints and zone with
+ * Reactive Strikes. meleeZoneAvoid below 0 — standing in a hero's reach IS the
+ * job, so a tile adjacent to a hero scores a bonus, not a penalty; aooRisk low
+ * (provoking is acceptable); approach/flank/killSecure up to charge in and
+ * finish. coverSeek low so cover never pulls it off the chokepoint. No retreat:
+ * bruisers die forward.
+ */
+export const BRUISER_PROFILE: AiProfile = {
+  id: "bruiser",
+  label: "Chokepoint bruiser",
+  weights: {
+    expectedDamage: 1,
+    killSecure: 6,
+    focusFire: 1,
+    expectedHealing: 1,
+    aooRisk: 0.1,
+    coverSeek: 0.25,
+    meleeZoneAvoid: -1,
+    approach: 2,
+    flank: 1.5,
+    standUp: 3,
+  },
+};
+
+/**
+ * Caster (M12 Phase B brief c): a backline ranged spellcaster. Scoped honestly
+ * to the existing spell subset — no new spell mechanics (real debuff spells are
+ * M17). High aooRisk + meleeZoneAvoid + coverSeek keep it out of reach and
+ * behind cover; expectedDamage/focusFire up so it rays the softest target;
+ * approach low so it edges forward only when nothing is in range. Pair with an
+ * archetype that knows a castable subset spell (e.g. ray_of_frost) — the cast
+ * family generates and prices the candidates.
+ */
+export const CASTER_PROFILE: AiProfile = {
+  id: "caster",
+  label: "Backline caster",
+  weights: {
+    expectedDamage: 1.5,
+    killSecure: 4,
+    focusFire: 1.5,
+    expectedHealing: 1,
+    aooRisk: 1,
+    coverSeek: 2.5,
+    meleeZoneAvoid: 3,
+    approach: 0.5,
+    flank: 0.75,
+    standUp: 3,
+  },
+};
+
+/**
+ * Wounded (M12 Phase B brief d): baseline play until hurt, then pull back
+ * behind cover. A PROFILE assignable to any archetype (content uses it where
+ * the fiction fits — e.g. marsh stalkers). Below half HP, approach flips
+ * strongly negative (disengage) and coverSeek is amplified (cling to cover).
+ */
+export const WOUNDED_PROFILE: AiProfile = {
+  id: "wounded",
+  label: "Wounded (pulls back)",
+  weights: { ...BASELINE_PROFILE.weights },
+  retreat: { hpFraction: 0.5, approachMultiplier: -1.5, coverSeekMultiplier: 2.5 },
+};
+
 /** Profile registry — Phase B adds archetype profiles here (data only). */
 export const AI_PROFILES: Record<string, AiProfile> = {
   [BASELINE_PROFILE.id]: BASELINE_PROFILE,
+  [SKIRMISHER_PROFILE.id]: SKIRMISHER_PROFILE,
+  [BRUISER_PROFILE.id]: BRUISER_PROFILE,
+  [CASTER_PROFILE.id]: CASTER_PROFILE,
+  [WOUNDED_PROFILE.id]: WOUNDED_PROFILE,
 };
 
 export function resolveAiProfile(id?: string): AiProfile {

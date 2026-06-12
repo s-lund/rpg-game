@@ -35,6 +35,8 @@ function marshFoe(
     weaknesses: { fire: 2 },
     // Decision 2026-06-11: stalker shots tangle marsh-mire around your legs.
     ...(ranged ? { onHitCondition: { condition: "slowed" as const, value: 1 } } : {}),
+    // M12: bog stalkers harass from range and break for cover when bloodied.
+    ...(ranged ? { aiProfileId: "wounded" } : {}),
   };
 }
 
@@ -95,6 +97,27 @@ const MIRRORMARSH_ENCOUNTERS: Record<EncounterId, EncounterTemplate> = {
         onHitCondition: { condition: "frightened", value: 2 },
       },
       marshFoe("ent_vault_stalker_1", "Bog Stalker", 2, 3, 2, true),
+      // Backline frost-caster hanging behind the wight (caster profile).
+      {
+        id: "ent_vault_chanter_1",
+        label: "Mire Chanter",
+        x: 8,
+        y: 2,
+        maxHp: 9,
+        ac: 15,
+        attackBonus: 5,
+        strikeRange: 1,
+        damageType: "cold",
+        damage: { count: 1, sides: 4, modifier: 0 },
+        knownSpells: ["ray_of_frost"],
+        spellAttackBonus: 7,
+        spellDc: 16,
+        saves: { fortitude: 4, reflex: 5, will: 7 },
+        initiativeModifier: 6,
+        resistances: { cold: 3 },
+        weaknesses: { fire: 2 },
+        aiProfileId: "caster",
+      },
     ],
   },
 };

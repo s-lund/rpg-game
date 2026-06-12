@@ -142,14 +142,17 @@ export const EMBERWATCH_BATTLE_MAPS: Record<BattleMapId, BattleMapDefinition> = 
       "~~~~~~~~~~~~~~",
       "~~~~~~~~~~~~~~",
       "==============",
-      "......~.......",
-      ".....c........",
+      "......~#......",
+      ".....c.#......",
       ".........~....",
       "==============",
       "~~~~~~~~~~~~~~",
       "~~~~~~~~~~~~~~",
       "~~~~~~~~~~~~~~",
     ],
+    // A toppled gatehouse pylon (walls at col 7, rows 3-4) splits the span into
+    // narrow lanes — a chokepoint the Bridge Warden bruiser body-blocks, and a
+    // freestanding wall the pickets take cover behind (M11 wall-cover staging).
     partySpawns: [
       { x: 1, y: 3 },
       { x: 1, y: 4 },
