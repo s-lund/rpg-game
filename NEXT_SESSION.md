@@ -1,160 +1,116 @@
-# Next session — M13 DESIGN DISCOVERY (read this whole file before doing anything)
+# Next session — M13 "The War Turn", Phase A (premium model)
 
-> **This is not an implementation loop.** Previous `NEXT_SESSION.md` files were build prompts with
-> STEP 0…N and a gate. This one is different on purpose. The next session is a **design conversation**
-> — a long, deliberate **Q&A** — to figure out the *high-level core loop*: the thing that makes this
-> game good, or not. **Write no game code and no contract tests this session.** The only files you
-> may create/edit are design docs (`DESIGN.md`, `ROADMAP.md`, `PROGRESS.md`, and finally this file).
+> The design is locked. The 2026-06-12 design-discovery session settled the core loop with human
+> sign-off — **read `DESIGN.md` first; it is the north star this milestone answers to.** This file
+> is back to being a normal build prompt: STEP 0 baseline → contract-test-first → gate.
 >
-> **Model: premium.** This is the most load-bearing design call on the board — it sets what M13
-> builds and may reorder the roadmap. Cost discipline does not apply to thinking here.
+> **Model: premium for this session (Phase A).** It builds the war-state model and turn-pipeline
+> contract that every later war milestone (M14–M17) rides. Phase B (UI + pack data wiring) is a
+> separate **standard-model** session against the Phase A handoff — same two-session pattern as
+> M11/M12.
 
 ---
 
 ## Status check before you start
 
-- **M12 is gate-1 done but NOT yet human-accepted.** Phase A is committed (`2fb1a44`); Phase B is
-  committed alongside this file. 290 tests green / 51 files, build clean, all `tests/contract/`
-  untouched. **The human deferred the M12 playtest** — the gate-2 LOOK checklist and the stop signal
-  in `PROGRESS.md` (M12 section) are still owed. If the human wants to do that playtest first, help
-  with that before opening the design conversation. Do **not** treat M12 as accepted.
-- **Do not start M13 implementation.** M13's nominal scope is "Strategic pressure, campaign AI +
-  win/lose" (`ROADMAP.md`). This session decides *whether that's even the right shape* and what it
-  should feel like — before a line of it is written.
-
----
-
-## The mandate (in the human's words, paraphrased)
-
-> "This is about the core game mechanic — the high-level one. From my perspective, the thing that
-> makes the game good… or not. Let the next session be about figuring this out. A lot of Q&A to get
-> there."
-
-So: step **back** from the milestone checklist. The engine works — party, world map, districts,
-tactical PF2e combat with smart AI, reclamation. What it does **not** yet have is a *reason to care*:
-no stakes (you can't win or lose), no pressure (nothing pushes back), no rewards, no story. M13–M16
-are supposed to supply those. Before building the first of them, settle the question underneath all
-of them: **what is the loop that makes a play session compelling, and what would make it hollow?**
-
----
-
-## How to run this session
-
-**Socratic, not a pitch.** Your job is to *interrogate*, not to propose a design and seek approval.
-Use the `AskUserQuestion` tool for focused, multiple-choice-where-it-helps batches; ask **one theme
-at a time**; reflect each answer back in your own words before moving on; chase the *why* under every
-answer; surface tensions and trade-offs the human may not have noticed. Expect many rounds. Do not
-rush to a plan. You are done discovering only when you can state the core loop in a few sentences and
-the human says "yes, that's it."
-
-**Anchor on the design DNA and its three genre touchstones** (from `ROADMAP.md` / `AGENTS.md`):
-- the pitch — *"reclaim a ruined frontier city, district by district, with a difficulty gradient
-  running inward,"* original setting on Pathfinder 2e (ORC) rules;
-- **XCOM** — the *tactical fight* is the product; campaign frames a string of tense setpieces;
-- **Battle Brothers** — *attrition and a living world*: a clock, escalating pressure, a roster,
-  harsh setbacks, permadeath;
-- **Baldur's Gate 1/2** — an *authored story arc*: reclamation is the spine of a narrative, and
-  "winning" is a climax.
-
-The pivotal question is which of those is the **beating heart** the campaign layer must serve (or
-what blend, and in what ratio) — because each implies a *different* M13. Don't let the human answer
-"all three" without forcing the priority: what is sacrificed first when they conflict?
-
----
-
-## The question agenda (a starting map, not a script — follow the human where it goes)
-
-1. **The one-sentence fantasy.** When this game is at its best, what is the player *feeling* and
-   *doing*? Finish: "EMBERWATCH is great when the player is ______." Then: what's the smallest unit
-   of that feeling — a single fight? a single hard choice on the map? a whole district reclaimed?
-
-2. **Beating heart.** Force the XCOM / Battle Brothers / BG priority above. When the tactical layer,
-   the attrition layer, and the story layer pull in different directions, which wins? What gets cut?
-
-3. **The three time-scales of the loop.** Make them concrete:
-   - the **10-minute** loop (one fight / one map decision) — what's the tension?
-   - the **1-hour** loop (a play session) — what did the player accomplish, risk, and carry forward?
-   - the **whole-campaign** arc — what's the shape from first frontier to ending?
-
-4. **What "winning" means.** (M13 + ties M16's story fiction.) Hold every district? A final
-   site/boss? A story objective? Is there one ending or several? What does the victory screen
-   actually celebrate?
-
-5. **What "losing" means, and why it should sting.** Party wipe? Losing your last foothold? The
-   clock running out? Is loss a *fail-state* (game over) or *erosion* (you can be ground down
-   slowly)? Is permadeath in the core fantasy or an optional dial (M19)?
-
-6. **Pressure and the clock.** (The M13 mechanism.) What pushes back, and on what does time advance
-   — travel steps? per fight? rest? Can held sites be threatened and fall? Can *safe havens* fall,
-   or are they sacrosanct? How harsh is recapture — a full re-fight or a weakened garrison? The aim
-   is tension that makes reclaiming *this* site matter, without the clock feeling like an arbitrary
-   timer or punishing exploration.
-
-7. **Why care about any single site?** Today every site is mechanically interchangeable terrain.
-   What makes the player *want* this district over that one — a reward, a story beat, a strategic
-   chokehold, a recruit, relief of pressure elsewhere?
-
-8. **The anti-goals — "or not."** Name the failure modes to design against, explicitly: snowballing
-   (winning makes you stronger makes winning easier), busywork/grind, fake difficulty (stat-cheating
-   enemies), an anticlimactic ending, a clock that just nags, decisions without consequences. The
-   human's "…or not" is half the brief — capture it.
-
-9. **Scope and ordering.** Given the answers, is **M13 (strategic pressure + win/lose)** truly the
-   right next build, or does the core-loop answer pull something forward (economy/M14, progression
-   /M15, story/M16) or reshape M13's contents? Decide the next *build* milestone deliberately.
-
----
-
-## What you must respect (constraints the design cannot break)
-
-The architecture is load-bearing and non-negotiable (`AGENTS.md`, `ARCHITECTURE.md`) — whatever you
-design has to live inside it:
-- the deterministic rules/campaign engine is the single source of truth; all state changes flow
-  through the action/effect → event pipeline; `campaign-apply.ts` is the campaign-side pipeline.
-- strategic AI / campaign clock must be a **pure function over campaign state**, serialized and
-  replayable from the event log; old saves migrate via a serialize version bump.
-- core stays headless; renderer/narrator are read-only consumers; `tests/contract/` is frozen.
-
-Flag any design idea that would require breaking one of these, and find the in-architecture version.
-
----
-
-## Deliverables of THIS session (design only)
-
-1. **`DESIGN.md` (new)** — the core-loop vision record: the one-sentence fantasy, the beating-heart
-   priority, the three time-scale loops, the win/lose definition, the anti-goals. This is the
-   north-star doc later milestones answer to. Keep it tight — vision and decisions, not a spec dump.
-2. **Fold the M13-specific resolutions** into `ROADMAP.md` under M13's "Clarify first" as a dated
-   *"resolved"* block (the pattern M9–M12 used), and adjust the M13 "Goal/You can try" if the heart
-   answer reshaped it. Reorder later milestones if the human chose to.
-3. **Rewrite this file (`NEXT_SESSION.md`)** into the actual **M13 implementation brief** — a normal
-   build prompt (STEP 0 baseline → contract-test-first build → gate), now that the design is locked.
-   Note the model tier M13 wants (premium for the campaign-clock contract + strategic AI; standard
-   for UI, per the roadmap).
-4. **Update `PROGRESS.md`** "Current milestone" / "Last updated" to reflect that the design pass is
-   done and M13 is ready to build (and that M12's gate-2 playtest may still be outstanding).
-
-**Human sign-off gate:** do not write `DESIGN.md` as settled, fold anything into the roadmap as
-"resolved," or write the M13 build brief until the human explicitly agrees the core loop is right.
-Until then, keep asking. **No contract test gets written this session.**
-
----
+- **M12 gate 2 is STILL OWED.** Gate 1 passed (290 tests green / 51 files); the human deferred the
+  playtest. The LOOK checklist lives in `PROGRESS.md` (M12 section). If the human wants to run it
+  now, help with that first. It can also be combined with the M13 gate-2 playtest later — but M12
+  must not silently become "accepted" without it.
+- **Do not work ahead.** M13 is the war turn ONLY. Economy (M14), autoresolve (M15), troops in
+  tactical combat (M15), faction AI / heat (M16), and win/lose (M17) are all out of scope. The v1
+  pressure here is a **scripted, data-driven raid schedule** — deliberately dumb, visibly flagged.
 
 ## Orientation (read first)
 
-- `AGENTS.md`, `ARCHITECTURE.md`, `ROADMAP.md` (esp. M13 + the Phase-2 framing), `PROGRESS.md`
-  (current state; M12 gate-2 still owed). These ground the conversation in what the game *is* today
-  so the design starts from reality, not a blank page.
-- The game today, in one breath: create a 4-hero party (Fighter/Rogue/Wizard/Cleric) → BG-style
-  overworld → enter world sites or multi-level districts → tactical PF2e combat (smart per-archetype
-  AI, saves/cover/conditions/reactions) → victory flips sites hostile→held → reclaim the frontier on
-  an inward difficulty gradient. HP carries over; spell slots refill at safe havens (interim). There
-  is **no** campaign clock, **no** win/lose, **no** economy, **no** XP/levels, **no** story yet.
-- If you want to *feel* the current loop before designing on top of it: `npm run dev`. On this
-  machine npm isn't on PATH — it lives at
-  `%LOCALAPPDATA%\Microsoft\WinGet\Packages\OpenJS.NodeJS.LTS_*\node-v24.16.0-win-x64` (prepend to
-  PATH). (This session writes no code, but playing it is good design fuel — and you can also run the
-  outstanding M12 gate-2 playtest while you're there.)
+`DESIGN.md` (north star), `AGENTS.md`, `ARCHITECTURE.md`, `ROADMAP.md` (Phase 3 intro + M13),
+`PROGRESS.md`. The game today: M0–M12 built (M12 gate-2 pending) — party creation, world/district
+strategic maps, deep PF2e tactical combat with archetype AI, reclamation via `siteControl`. There is
+no clock, no factions, no troops, no win/lose. M13 adds the first three.
 
-One session. End when the core loop is articulated, the human agrees, the design docs are written,
-and this file has become the M13 build brief — not before.
+On this machine npm isn't on PATH — it lives at
+`%LOCALAPPDATA%\Microsoft\WinGet\Packages\OpenJS.NodeJS.LTS_*\node-v24.16.0-win-x64` (prepend to
+PATH).
+
+---
+
+## M13 scope (from `ROADMAP.md`, design-resolved in `DESIGN.md`)
+
+The campaign becomes a **discrete-turn war over an owned map**:
+
+1. **Factions.** Three enemy factions + the rebellion (+ neutral, if Phase A decides to keep
+   unowned areas) as first-class campaign data with stable IDs. Existing `siteControl`
+   (hostile/held) migrates into per-area **faction ownership**.
+2. **The turn.** An `EndCampaignTurn` action: the player issues orders freely (travel within the
+   turn's movement allowance, future: recruit/garrison), then ends the turn; the world resolves one
+   deterministic tick through `campaign-apply.ts` — every change an effect → event, replayable.
+3. **Army stacks as data.** Stack = owner + location + slots, one slot = one soldier of a typed
+   troop (or a hero) — per `DESIGN.md` decision 4. A troop-type catalog (IDs + labels + tier; stat
+   blocks come in M15) lives in pack data behind the validator. Garrisons are stacks. In M13 stacks
+   exist, serialize, and move; they do not fight yet.
+4. **Scripted raids (v1 pressure).** A deterministic, data-driven raid schedule: a raid targets one
+   of the player's areas with a visible warning and a deadline (in turns). If the party is at the
+   area when the deadline hits (or travels there and triggers the fight), it resolves as a normal
+   tactical encounter — win = raid repelled; if unattended, the area flips to the raiding faction.
+   Scripted faction-vs-faction flips on the same schedule mechanism make the wider war visibly move.
+   All of it flagged in the overlay as placeholder until M16 (`m13_scripted_war`).
+5. **The war log.** Every ownership change, raid, and faction move is reported **with its cause**
+   (anti-goal: illegible war). Core emits the events; the renderer panel is Phase B.
+6. **Serialize version bump + migration.** Old saves load: held → rebellion ownership, hostile →
+   faction ownership per pack data (or a deterministic default split).
+
+**Phase A decides (the remaining "Clarify first" items — record decisions in `ROADMAP.md` as a
+dated resolved block, pattern M9–M12):** turn-length fiction (days vs weeks label); party movement
+allowance per turn (proposal: N edges, N small); whether neutral/unowned areas exist at start;
+whether a garrisoned area delays a scripted raid flip (proposal: keep v1 brutally simple — it
+doesn't; garrison combat math is M15's job).
+
+**Architecture constraints (non-negotiable):** all war state is campaign state, serialized,
+replayable from the event log; the tick is a pure deterministic function (seeded if randomness is
+ever needed — prefer none in M13); core stays headless; renderer read-only; **`tests/contract/` is
+frozen — never modify existing files there.** New contract tests get new files.
+
+---
+
+## Phase A (THIS session, premium) — contracts + core
+
+1. **STEP 0 — baseline.** `npm run test` → 290 green / 51 files; `npm run build` clean. If not,
+   stop and report.
+2. Write the frozen contract tests FIRST, then implement to green:
+   - `tests/contract/war-turn.test.ts` — `EndCampaignTurn` produces one deterministic effect/event
+     sequence; same state + same orders → identical events; full replay reconstructs state;
+     ownership changes only via effects.
+   - `tests/contract/war-state.test.ts` — factions/ownership/stacks/troop-catalog/raid-schedule
+     round-trip the campaign serialize version bump; an old-version save migrates correctly.
+   - `tests/contract/raid-schedule.test.ts` — raid warning → deadline → flip when unattended;
+     repelled when the tactical fight is won; faction-vs-faction scheduled flips fire
+     deterministically.
+3. Pack schema + validator extensions: faction definitions, per-area starting owner, troop-type
+   catalog, raid/war schedule entries. Both shipped packs get minimal valid data (full region
+   content is M18).
+4. Unit tests where behavior is real (movement allowance, schedule arithmetic); no ceremonial
+   tests.
+5. **Write the Phase B handoff** (what UI/wiring is owed, against which core APIs) into this file,
+   and **STOP.** Print the stop signal: what's built, what `npm run test` shows, and that Phase B
+   is a standard-model session.
+
+## Phase B (next session, standard) — renderer + content wiring
+
+Ownership colors/banners on the strategic maps; war-log panel; End Turn button + turn counter;
+raid-warning markers with deadlines; movement-allowance UX; overlay flags (`m13_scripted_war`,
+serialize/migration presence); M13 console banner. Also: update the stale one-liner in `AGENTS.md`
+("What this is" / design DNA) to point at `DESIGN.md` — the pitch is now the living three-faction
+war, not only "reclaim a ruined city."
+
+## Gates
+
+- **Gate 1 (loop self-check):** all new contract tests green alongside the full suite; build clean;
+  no frozen file touched.
+- **Gate 2 (human, after Phase B):** LOOK — end turns and watch the war move with causes in the log;
+  see faction ownership at a glance; get a raid warning, save that area in person, lose an ignored
+  one; load an old save and keep playing. OVERLAY — `m13_scripted_war` flagged. Stop signal:
+  **"M13 done. End turns, watch the war move, lose an ignored area, save an attended one."**
+  (The owed M12 LOOK checklist can be run in the same sitting — keep its acceptance separate.)
+
+One milestone. No economy, no autoresolve, no faction brains, no win/lose. Build the heartbeat;
+the war grows organs in M14–M17.

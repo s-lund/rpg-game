@@ -2,8 +2,8 @@
 
 Build progress for EMBERWATCH. Milestone definitions live in `ROADMAP.md`.
 
-**Current milestone:** M12 — **gate 1 (tests) DONE, gate 2 NOT yet human-tested.** Both phases delivered (Phase A committed `2fb1a44`; Phase B this session: archetype profiles, content wiring, renderer/log/overlay). 290 tests green / 51 files, build clean, every `tests/contract/` file untouched. The human **deferred the playtest** (2026-06-12) — the gate-2 LOOK checklist and the stop signal are still owed before M12 is accepted. **M13 is next, approached DESIGN-FIRST:** a Q&A session to settle the high-level core loop ("what makes the game good — or not") before any code — see `NEXT_SESSION.md`.  
-**Last updated:** 2026-06-12 — M12 Phase B delivered (290 green, build clean); **gate 2 pending — not tested by human yet.**
+**Current milestone:** M13 — **The War Turn, ready to build** (design locked; see `NEXT_SESSION.md` for the build brief). The 2026-06-12 design-discovery session settled the core loop with human sign-off — **`DESIGN.md`** is the new north star (living three-faction war, rebel fourth power, spark to wildfire) — and restructured the roadmap: war arc **M13–M17**, old M14–M20 renumbered **M19–M25**. **M12 gate 2 is still owed:** gate 1 passed (290 tests green / 51 files, contracts untouched) but the human deferred the playtest — the LOOK checklist in the M12 section below remains open before M12 is accepted.  
+**Last updated:** 2026-06-12 — M13 design-discovery session done: `DESIGN.md` written (human-signed), roadmap restructured M13–M25, M13 build brief written. M12 gate 2 still pending.
 
 ---
 
@@ -24,16 +24,27 @@ Build progress for EMBERWATCH. Milestone definitions live in `ROADMAP.md`.
 | M10 Initiative, reactions + conditions | **done** | pass | accepted |
 | M11 Line of sight, cover + friendly fire | **done** | pass | accepted |
 | M12 Smart tactical AI | **gate 1 done** | pass | **not tested yet** |
-| M13 Strategic pressure + win/lose | pending | — | — |
-| M14 Equipment, inventory, loot + economy | pending | — | — |
-| M15 Progression: XP + levels | pending | — | — |
-| M16 Story, quests, dialogue + skill checks | pending | — | — |
-| M17 Bestiary + spell breadth | pending | — | — |
-| M18 Figurines, facing + combat animations | pending | — | — |
-| M19 Roster, injuries, rest + recovery | pending | — | — |
-| M20 QoL: audio, save slots, difficulty | pending | — | — |
+| M13 The War Turn | **ready to build** | — | — |
+| M14 War Economy | pending | — | — |
+| M15 Battles of the War | pending | — | — |
+| M16 Faction Minds | pending | — | — |
+| M17 Endgame: spines, victory + defeat | pending | — | — |
+| M18 The Region Map (content) | pending | — | — |
+| M19 Equipment, inventory, loot + party economy | pending | — | — |
+| M20 Progression: XP + levels | pending | — | — |
+| M21 Story: faction character + personal thread | pending | — | — |
+| M22 Bestiary, spell breadth + faction rosters | pending | — | — |
+| M23 Figurines, facing + combat animations | pending | — | — |
+| M24 Injuries, rest + permadeath dial | pending | — | — |
+| M25 QoL: audio, save slots, difficulty | pending | — | — |
 
-> Roadmap renumbered 2026-06-11: the old "M10 Tactical character art pass" is subsumed into **M18**. M9–M20 ordering rationale lives in `ROADMAP.md`.
+> Roadmap restructured 2026-06-12 after the design-discovery session (`DESIGN.md`, human-signed): the old M13 exploded into the war arc M13–M17 (+ M18 region-map content); old M14–M20 renumbered to M19–M25. Default build order: M13 → M14 → M15 → M16 → M19 → M20 → M17 (party progression before Endgame), re-checked at every gate-2. Earlier note (2026-06-11): the old "M10 Tactical character art pass" lives on as M23.
+
+---
+
+## M13 design-discovery session — done (2026-06-12)
+
+**Delivered (design only, no code):** `DESIGN.md` (new, human-signed) — the core-loop north star: living three-faction war over a frontier region, player as rebel fourth power, spark-to-wildfire arc; discrete strategic turns; full map visibility; pure autoresolve absent the party ("being there changes the rules"); armies as stacks with one slot = one soldier/hero; typed fungible troops; gold-hires/food-sustains economy; recruits raised from freed areas; retreat as a first-class mechanic (the campaign owns fairness); victory = break three faction spines (party-only setpieces, capitulation cascades); defeat = party wipe only (territory fully elastic); no world-leveling; heat + slow burn; story serves the war. Anti-goals: autoresolve dominance, illegible war, world-leveling. ROADMAP.md restructured (M13–M25); this file and `NEXT_SESSION.md` (M13 build brief) rewritten. `tests/contract/` untouched; zero game code changed.
 
 ---
 

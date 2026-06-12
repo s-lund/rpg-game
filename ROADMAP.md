@@ -75,7 +75,7 @@ Milestones are sequential and each is a bounded loop target. Stack: TypeScript +
 - **Model:** standard for manifest + loader wiring; N/A for producing final art (out-of-loop). *Fixed authored maps and procedurally generated graphs both remain valid — art is presentation anchored to `mapX`/`mapY` (strategic) and grid layout (battle), topology stays data.*
 - **Plan changes made during M8 (delivered beyond the original spec):** district interiors may span **multiple levels** (tower floors / dungeon depths) with per-level map art and stairs-aware token travel; battle maps carry **blocked terrain** (walls, water, chasms) that the core enforces for movement; hostile **world-layer combat sites** fight on arrival and flip to Held (the world map participates in reclamation, not only district interiors); the shipped "real art" is authored SVG illustration — raster painted upgrades remain a manifest-edit drop-in (`ASSETS_NEEDED.md`).
 
-## Phase 2 (M9–M20) — from engine demo to game
+## Phase 2 (M9–M12) — from engine demo to game *(M13+ superseded by the Phase 3 redesign below)*
 *Added 2026-06-11 after the genre gap review (XCOM, BG1/2, Battle Brothers). Ordered hardest-first, except where an item depends on an earlier one. Two dependency chains force the order: combat depth (M9 → M10 → M11) must land before the tactical AI can be smart about it (M12), and equipment (M14) + progression (M15) must land before story rewards (M16) and gear-reflective figurines (M18). M13 and M14 don't depend on the combat chain and may be pulled forward if priorities shift. The old "M10 Tactical character art pass" is subsumed into M18. Each item flags **Clarify first** (decisions needed from the human) and **Safe to start** (unambiguous, can be coded today once the milestone begins).*
 
 ## M9 — Combat rules depth *(deferred from M7; unchanged)*
@@ -122,86 +122,133 @@ Milestones are sequential and each is a bounded loop target. Stack: TypeScript +
 - **Safe to start:** utility-scoring skeleton replacing `chooseEnemyAction` (enumerate legal actions → score → pick), with the current greedy policy as the baseline profile; the headless scenario-test harness — both are pure-core and renderer-free.
 - **Delivered (2026-06-12):** Phase A (premium, `2fb1a44`) — utility-scoring framework, frozen behavior contracts (`tests/contract/ai-behavior.test.ts`), RAW Reactive Strike closure (`tests/contract/reactions-raw.test.ts`). Phase B — four archetype profiles as data (`skirmisher`/`bruiser`/`caster`/`wounded`), wired into both packs (new enemy `caster` role + Spire Adept / Mire Chanter; cowardly looters and bog stalkers → `wounded`), renderer/log/overlay (crit cast-disruption log line; `m12_tactical_ai` + `m12_raw_reactions` overlay flags), and a wall-cover chokepoint on Watcher's Bridge (closes the M11 wall-cover watch item). 290 tests green / 51 files, build clean, contract files untouched. **Gate 2: NOT yet human-tested — playtest deferred 2026-06-12.**
 
-## M13 — Strategic pressure, campaign AI + win/lose
-**Goal:** the reclamation loop becomes a war — the enemy pushes back on a clock, and the campaign can be won and lost.
-- **Difficulty:** hard. New simulation layer over the campaign state, and the game's first real pacing/balance problem. Independent of M9–M12 — may be built earlier or in parallel if combat depth stalls.
-- **You can try:** travel and rest advance a visible campaign clock; held sites come under threat and fall back to hostile if ignored (with a warning window to respond); pressure escalates the longer the campaign runs; reclaiming everything (or a defined story objective) wins the campaign with a real ending screen; losing your foothold (or party wipe under permadeath later) loses it.
-- **Loop self-check:** the clock and every counterattack ride the campaign event pipeline (`campaign-apply.ts`) — deterministic, serialized, replayable; strategic AI is a pure function over campaign state; win/lose detection has contract tests; old saves migrate (campaign serialize version bump).
-- **Stop signal:** "M13 done. Ignore a threatened site and lose it; push through and see the victory screen."
-- **Model:** premium for the campaign-clock contract and strategic AI; standard for UI.
-- **Clarify first:** what winning *means* in the Emberwatch fiction (all districts held? a final site/boss? — story decision, ties into M16); what the clock ticks on (travel steps? per fight? real days are out); can safe havens fall (proposal: threatened but never permanently lost — Battle Brothers-style harshness is a dial); how punishing recapture is (full re-fight vs weakened garrison fight).
-- **Safe to start:** campaign clock + `SiteThreatened` / `SiteRetaken` events through the existing pipeline; data-driven scheduled raids (escalation table) as the v1 "AI" before anything smart; win/lose state detection + screens.
-- **Note (2026-06-12) — approached DESIGN-FIRST.** Per the human, M13 is where the *high-level core loop* lives — "the thing that makes the game good, or not." Before any code, a dedicated **design Q&A session** (premium) interrogates the core fantasy and loop, decides what winning/losing *means*, what the clock ticks on, how harsh setbacks get, and whether the answer reorders the roadmap. Only once those are locked and human-signed-off does the M13 contract/implementation brief get written. The "Clarify first" questions above are the *starting* agenda, not the whole of it. See `NEXT_SESSION.md`.
+## Phase 3 (M13–M25) — the war *(redesigned 2026-06-12)*
 
-## M14 — Equipment, inventory, loot + economy
-**Goal:** items exist — gear slots drive combat stats, fights drop loot, gold buys gear at safe havens. The reward loop.
-- **Difficulty:** hard. Wide surface: core data model, derivation rewrite, loot tables, shop UI, serialization, balance. No dependency on M9–M13.
-- **You can try:** each hero has weapon / armor / 2 trinket slots; swap the Fighter's shortbow for a looted longbow and watch the inspector numbers change; win a fight and pick up dropped loot; sell it at Fishrow Market and buy armor with the gold; the party sheet shows a shared inventory.
+*The M13 design-discovery session settled the core loop — see **`DESIGN.md`** (human-signed): EMBERWATCH is a **living three-faction war** over a frontier region, with the player as a rebel **fourth power** — spark to wildfire. The strategic war is the beating heart; the campaign owns fairness. That reframe explodes the old M13 into a five-milestone **war arc (M13–M17)** and renumbers the old M14–M20 to **M19–M25**. Cost routing: **premium only for load-bearing contracts**; standard for everything spec'd against them; independence flags mark what can be pulled forward or run in parallel. **Default ordering: M13 → M14 → M15 → M16 → M19 → M20 → M17** — party progression lands before Endgame so spine missions are tuned once, against the leveled party they're designed for. Re-check the ordering at every gate-2 playtest. M18 (region map content) can be authored in parallel any time after the M13/M14 schemas settle.*
+
+## M13 — The War Turn
+**Goal:** the campaign becomes a discrete-turn war over an owned map — turn pipeline, three factions + the rebellion owning areas, army stacks as data, scripted raids as v1 pressure, and a war log that makes every change traceable.
+- **Difficulty:** hard. A new simulation layer over campaign state, a serialize migration, and the contract every later war milestone rides.
+- **You can try:** end a turn and watch the war tick — a war-log panel reports every faction move and raid *with its cause*; areas show faction ownership at a glance; a raid warning appears on one of your areas with a deadline — travel there in time and repel it in a tactical fight, or ignore it and watch the area flip; faction-vs-faction flips appear in the log (scripted v1, flagged placeholder until M16); party strategic movement is turn-bounded; an old save migrates and still plays.
+- **Loop self-check:** `EndCampaignTurn` rides `campaign-apply.ts` — one deterministic effect/event sequence per tick, replayable from the log; war state (factions, ownership, stacks, troop-type catalog, raid schedule) round-trips a campaign serialize version bump with a migration test; ownership flips only via effects; raid scheduling is deterministic; frozen suites untouched.
+- **Stop signal:** "M13 done. End turns, watch the war move, lose an ignored area, save an attended one."
+- **Model:** **premium Phase A** — war-state model, turn-pipeline contract, raid-schedule contract, migration. **Standard Phase B** — ownership colors/banners, war-log panel, end-turn + raid-warning UX, pack faction data. (Same two-session split as M11/M12.)
+- **Clarify first:** *largely resolved 2026-06-12 — see `DESIGN.md`* (discrete turns, full visibility, raids v1 scripted, win/lose shape lands in M17). Remaining for Phase A: turn-length fiction (days vs weeks label), party moves per turn, whether neutral/unowned areas exist at campaign start.
+- **Safe to start:** troop-type catalog + faction/ownership fields in the pack schema + validator; war-log panel shell; end-turn button UX.
+
+## M14 — War Economy
+**Goal:** gold hires, food sustains — per-area yields, a treasury, wages, food upkeep, desertion, and recruitment pools from freed areas.
+- **Difficulty:** medium. Well-specified math riding M13's turn tick. **Depends on M13 only; independent of M15/M16 — may be reordered against them freely.**
+- **You can try:** held areas yield gold and food each turn (visible per area and in a treasury panel); recruit militia from a freed area's population pool and watch the pool shrink; skip wages and watch desertion tick over turns; run out of food and feel immediate harm; a mining town and a breadbasket are visibly different prizes.
+- **Loop self-check:** yields, wages, upkeep, desertion, and recruitment are all turn-tick effects through `campaign-apply.ts` — deterministic, serialized, replayable; shortage rules carry contract tests; yields/pools are pack data gated by the validator.
+- **Stop signal:** "M14 done. Grow an army you can afford, then overextend and watch it starve and desert."
+- **Model:** premium for ONE contract-design pass (the shortage/desertion/recruitment rules — these decide the feel); standard per rule against it.
+- **Safe to start:** yield/pool fields in pack schema + validator; treasury/economy UI panels.
+
+## M15 — Battles of the War
+**Goal:** armies fight — deterministic autoresolve when the party is absent, troops on the tactical grid (allied AI included) when present, and retreat as a first-class mechanic.
+- **Difficulty:** hard. Autoresolve and retreat are anti-goal-critical contracts (`DESIGN.md`: autoresolve dominance cuts both ways). **Depends on M13 (stacks); does NOT depend on M14.**
+- **You can try:** send an army without the party to take an area — an autoresolve report with casualties; defend an area in person — garrison soldiers stand on the grid as AI-controlled allies beside your heroes while the enemy stack fights as units; flee a hopeless battle mid-fight (survivors withdraw, the costs are real); refuse battle on the map; casualties and area flips flow back to the strategic layer.
+- **Loop self-check:** autoresolve is a pure deterministic function over the stacks involved, with table-driven contract tests; troop stat blocks are pack data passing the validator; allied troop AI rides M12's `chooseAiAction` with per-troop-type profiles — no new mutation paths; the retreat contract pins what escapes, what is lost, and where survivors go; full battles replay from the event log.
+- **Stop signal:** "M15 done. Win an area without the party, then save a worse battle in person, then flee one you couldn't."
+- **Model:** **premium** for the autoresolve + retreat contracts; standard for ally-AI wiring, stack→spawn mapping, battle-report UI.
+- **Safe to start:** troop stat blocks as pack data; spawn mapping from stack slots; battle-report UI shell.
+
+## M16 — Faction Minds
+**Goal:** the scripted raid table is replaced by real faction strategic AI — plus heat/notoriety and the slow burn.
+- **Difficulty:** hard. The campaign-scale sibling of M12. **Depends on M13 + M15 (attacks execute via autoresolve); M14 strongly desirable first (the economy constrains the AI honestly).**
+- **You can try:** factions wage readable war on each other — watch two powers bleed over a crossing and snipe the exhausted winner; hurt a faction and watch its attention escalate (patrols → punitive expeditions → armies), visible as heat; turtle and watch one faction consolidate the map; every faction move carries a war-log explanation (anti-goal: illegible war).
+- **Loop self-check:** faction AI is a pure function `(campaignState) → orders` — deterministic, replayable, no hidden state; behavior contracts (responds to heat proportionally, exploits weakness, never acts on information the player couldn't see); heat is serialized campaign state.
+- **Stop signal:** "M16 done. Tell me what each faction is doing and why — from the map alone."
+- **Model:** **premium** for the scoring framework + behavior contracts (M12's pattern at campaign scale); standard for per-faction personality profiles as data.
+- **Safe to start:** heat as campaign data updated by existing events; war-log explanation strings; faction personality profile schema.
+
+## M17 — Endgame: spines, victory + defeat
+**Goal:** the campaign can be won and lost — spine areas, party-only spine-break setpieces, capitulation cascades, and the death of the spark.
+- **Difficulty:** medium against settled contracts. **Depends on M13–M16. Default ordering pulls M19 + M20 (party progression) in FIRST** so spine missions are tuned once, against the leveled, equipped party they're designed for.
+- **You can try:** each faction has a marked spine (capital / leader / stronghold); armies can besiege it but only the party can break it — an authored hard encounter (v1; upgraded to full setpieces in M21); breaking a spine cascades that faction's collapse (defections, fast flips — no mop-up grind); break all three for the victory screen + a campaign summary; a party wipe is the only defeat; lose every area and survive — the campaign continues from a hunted cell.
+- **Loop self-check:** win/lose detection has contract tests; cascade effects ride the campaign pipeline; defeat triggers on a party wipe and nothing else; serialize round-trip.
+- **Stop signal:** "M17 done. Break a spine and watch a kingdom fall; then lose everything and keep playing; then win."
+- **Model:** standard against the existing contracts; premium only if cascade rules get hairy.
+- **Safe to start:** spine flags in pack data; victory/defeat screens; campaign-summary stats computed from the event log.
+
+## M18 — The Region Map *(content)*
+**Goal:** the map grows into a region worth a war — farmland, towns, and crossings around the ruined city, with authored yields, recruitment pools, faction starting positions, and spine sites.
+- **Difficulty:** low-medium; content volume, not systems. **Needs only the M13 (+ M14 yields) schemas — can be authored in parallel with M15–M17 at any point after those settle.**
+- **You can try:** a campaign on the full region map — distinct breadbasket / mining / crossing areas, three faction heartlands, the ruined city as the war's center; the existing districts persist as ordinary contested areas (per `DESIGN.md`).
+- **Loop self-check:** the region pack passes the full validator (graph, ownership, yields, pools, spines, encounters, battle maps); both existing packs still load and play.
+- **Stop signal:** "M18 done. Play the war on the real map."
+- **Model:** standard + out-of-loop art (SVG illustration per M8's pipeline).
+- **Safe to start:** the moment M13/M14 schemas land — area briefs, yield spreadsheets, faction placement.
+
+## M19 — Equipment, inventory, loot + party economy *(old M14)*
+**Goal:** items exist — gear slots drive combat stats, fights drop loot, gold buys gear at friendly settlements. The party's reward loop.
+- **Difficulty:** hard. Wide surface: core data model, derivation rewrite, loot tables, shop UI, serialization, balance. **Free-floating: depends on nothing in the war arc — may be interleaved anywhere. Default slot: after M16, before M20 → M17.**
+- **You can try:** each hero has weapon / armor / 2 trinket slots; swap the Fighter's shortbow for a looted longbow and watch the inspector numbers change; win a fight and pick up dropped loot; sell it and buy armor with the gold; the party sheet shows a shared inventory.
 - **Loop self-check:** items are core data validated like everything else; `derive.ts` reads equipped items (the fixed `defaultWeapon` class kit becomes just the starting loadout); party + inventory round-trip through campaign serialize; loot tables live in content packs and pass the pack validator; shop math (buy/sell/gold) headless with contract tests.
-- **Stop signal:** "M14 done. Loot a weapon, equip it, see the numbers move, sell the rest, buy armor."
+- **Stop signal:** "M19 done. Loot a weapon, equip it, see the numbers move, sell the rest, buy armor."
 - **Model:** premium for the equipment/derivation contract; standard for shop + UI.
-- **Clarify first:** depth target — lightweight slots (weapon/armor/trinkets, proposal) vs BG-style paper-doll vs Battle Brothers grid+durability; magic items and item identification in or out (proposal: out until M17); encumbrance (proposal: no); price model and gold curve (needs a balance pass with M15's XP curve).
+- **Clarify first:** depth target — lightweight slots (weapon/armor/trinkets, proposal) vs BG-style paper-doll vs Battle Brothers grid+durability; magic items and identification in or out (proposal: out until M22); encumbrance (proposal: no); price model and gold curve (**gold is ONE currency — the M14 war treasury and the shop economy share it**; balance pass with M20's XP curve).
 - **Safe to start:** item types + equipment slots in core with validation; `derive.ts` refactor from `defaultWeapon` to equipped-weapon (mechanical, well-tested already); serialize round-trip; loot-table schema in the pack validator.
 
-## M15 — Progression: XP + levels
+## M20 — Progression: XP + levels *(old M15)*
 **Goal:** characters grow — XP from fights and objectives, PF2e leveling with visible choices at level-up.
-- **Difficulty:** medium-hard. The math is SRD-defined; the cost is content (feats/spells per level) and the level-up UI. Pairs naturally with M14 — both rewire character derivation.
+- **Difficulty:** medium-hard. The math is SRD-defined; the cost is content (feats/spells per level) and the level-up UI. Pairs naturally with M19 — both rewire character derivation. **Default slot: after M19, before M17.**
 - **You can try:** winning fights banks XP; at level-up a screen offers the level's choices (HP, proficiency steps, ability boosts, new spell for the Wizard, feat picks from a scoped list); a level-3 party visibly outclasses the level-1 encounters that used to be hard.
 - **Loop self-check:** XP accrual is computed from the campaign event log (no new mutation path); leveling math validates against the vendored SRD; a leveled character round-trips serialize; derivation tests cover each level band.
-- **Stop signal:** "M15 done. Level the party to 3, make real choices on the way, feel the power difference."
+- **Stop signal:** "M20 done. Level the party to 3, make real choices on the way, feel the power difference."
 - **Model:** standard; premium only if feat interactions get hairy.
-- **Clarify first:** level band for this pass (proposal: 1–5 — feat/spell content grows fast per level); XP sources and weights (combat only, or site-cleared/quest bonuses); the feat subset per class (SRD vendoring task, like M2/M7 — *must include AoO-mitigation options, e.g. steady-spellcasting / point-blank-style feats, per the M12 resolution that full RAW Reactive Strike triggers land with skill-based counters here*); retraining/respec (proposal: out).
+- **Clarify first:** level band for this pass (proposal: 1–5); XP sources and weights; the feat subset per class (SRD vendoring task — *must include AoO-mitigation options, e.g. steady-spellcasting / point-blank-style feats, per the M12 resolution*); retraining/respec (proposal: out). **Anti-goal guard (`DESIGN.md`: no world-leveling):** when the party levels, the world does NOT — the counterweight is priced elite troop tiers (rosters in M22), never scaled stats; cheap militia stays common forever.
 - **Safe to start:** XP accrual from existing victory events; `level` on the character model + derivation scaling per SRD; level-up screen reusing the creation screen's point-allocation UX.
 
-## M16 — Story, quests, dialogue + skill checks
-**Goal:** the BG-shaped layer — an authored campaign arc that advances with reclamation, side quests, dialogue with choices, and trained skills that finally roll dice.
-- **Difficulty:** medium-hard as a system; the real cost is authored content. Depends on M14/M15 so quests can pay XP, loot, and gold; ties into M13's win condition.
-- **You can try:** a main questline advances as districts flip to held, told in dialogue scenes with real choices; NPCs at safe havens offer side quests with stakes and rewards; a locked vault yields to a Thievery check, a nervous informant to Diplomacy — visible rolls using the skills picked at creation; a journal tracks active and finished quests.
-- **Loop self-check:** quest state is a machine on campaign state driven by campaign events (replayable, serialized); skill checks resolve headless in core per SRD (roll + proficiency vs DC) with contract tests; dialogue content lives in content packs and passes the validator; the narrator seam is unchanged — story beats still consume the event log.
-- **Stop signal:** "M16 done. Take a side quest, pass a skill check you built for at creation, finish a story chapter."
-- **Model:** premium for the quest-state contract; standard for content wiring. Story *text* is authored content — outline needs human sign-off before the loop writes prose.
-- **Clarify first:** the story itself — premise, chapter beats, and ending(s) need a human-approved outline (biggest open item on the whole board; also settles M13's win fiction); dialogue depth (proposal: choice cards with consequences, not full branching trees); do failed skill checks block content or route it (proposal: route, never hard-block); runtime LLM narrator stays out of scope?
+## M21 — Story: faction character + the personal thread *(old M16, reshaped 2026-06-12)*
+**Goal:** story serves the war (`DESIGN.md`): factions get character — leaders with voices, atmosphere, a spine-quest per faction (upgrading M17's v1 spine encounters into authored setpieces) — and the rebel gets a personal thread; dialogue with choices, and trained skills that finally roll dice. The plot is whatever the sim produces; no parallel authored mainline.
+- **Difficulty:** medium-hard as a system; the real cost is authored content. Wants M19/M20 so quests can pay XP, loot, and gold; builds on M17's spines.
+- **You can try:** meet each faction's leader and feel who they are; advance a faction's spine-quest as the war turns against them; resolve a situation with a Thievery or Diplomacy check — visible rolls using the skills picked at creation; your rebel's personal thread pays off across the campaign; a journal tracks it all.
+- **Loop self-check:** quest state is a machine on campaign state driven by campaign events (replayable, serialized); skill checks resolve headless in core per SRD with contract tests; dialogue content lives in content packs and passes the validator; the narrator seam is unchanged.
+- **Stop signal:** "M21 done. Tell me who the three enemy leaders are without checking notes, and pass a skill check you built for at creation."
+- **Model:** premium for the quest-state contract; standard for content wiring. Story *text* is authored content — faction briefs + the personal-thread outline need human sign-off before the loop writes prose.
 - **Safe to start:** skill-check resolution in core (SRD math, mirrors the attack resolver); quest state machine + journal model on campaign events; dialogue-scene schema in the pack validator. Content waits on the outline.
 
-## M17 — Bestiary + spell breadth
-**Goal:** content width on the finished rules — a real monster roster and fuller spell lists that *use* saves, conditions, resistances, and cover.
-- **Difficulty:** medium. Each entry is the proven add-action/add-effect pattern; the volume is the work. Wants M9/M10 (saves, conditions) so monsters have real abilities; magic items fold in here on M14's item system.
-- **You can try:** distinct enemy families (undead that shrug off frost, swarms weak to area damage, cultist casters who debuff, a boss with phases) spread across the districts by theme; Wizard and Cleric pick from 2–3 real spells per level; enemy casters answer in kind; the first magic items drop.
-- **Loop self-check:** every monster ability and spell ships with its contract test on the existing pipeline (no new mutation paths); bestiary entries live in content packs and pass the validator; resistance/save/condition hooks from M9/M10 are exercised, not bypassed.
-- **Stop signal:** "M17 done. Fight three enemy families that demand different tactics, and cast a new spell per caster."
-- **Model:** standard throughout — this is the milestone the `add-effect` / `add-action` candidate skills were named for.
-- **Clarify first:** the roster brief (which families, how many, boss count — content decision); the spell list per class (SRD vendoring + scope sign-off); magic-item power band.
-- **Safe to start:** nothing blocked once M9/M10 land — pick any roster entry and run the pattern; the SRD vendoring checklist can be prepared earlier.
+## M22 — Bestiary, spell breadth + faction rosters *(old M17)*
+**Goal:** content width on the finished rules — distinct enemy families, fuller spell lists that *use* saves/conditions/resistances/cover, and each faction's troop roster widened with the priced elite tiers that answer a leveled party (`DESIGN.md`: no world-leveling).
+- **Difficulty:** medium. Each entry is the proven add-action/add-effect pattern; the volume is the work. Magic items fold in here on M19's item system.
+- **You can try:** enemy families that demand different tactics (undead that shrug off frost, swarms weak to area damage, casters who debuff, a boss with phases); Wizard and Cleric pick from 2–3 real spells per level; faction armies field troops from cheap militia up to elites that genuinely threaten a high-level party; the first magic items drop.
+- **Loop self-check:** every monster ability and spell ships with its contract test on the existing pipeline; bestiary/roster entries live in content packs and pass the validator; autoresolve strengths and tactical stat blocks for new troop tiers stay consistent (one data source).
+- **Stop signal:** "M22 done. Fight three enemy families that demand different tactics, and meet a faction's elite guard."
+- **Model:** standard throughout — the milestone the `add-effect` / `add-action` candidate skills were named for.
+- **Clarify first:** the roster brief per faction (families, counts, boss count); the spell list per class (SRD vendoring + scope sign-off); magic-item power band.
+- **Safe to start:** any roster entry once M15's troop stat-block schema exists; the SRD vendoring checklist can be prepared earlier.
 
-## M18 — Figurines, facing + combat animations *(subsumes old M10)*
-**Goal:** the tactical board comes alive — a figurine per character, NPC, and monster that shows its gear and faces the way it's heading, with real attack and spell animations.
-- **Difficulty:** medium code, heavy asset pipeline — kept late on purpose (art last, behind the seam), and gear-reflective looks need M14.
-- **You can try:** every combatant is a readable figurine (GLB via Tripo/Meshy) instead of a box; figures turn to face movement and attack targets; the Fighter's looted longbow is visibly in hand after equipping (weapon swap at minimum); strikes, Ray of Frost, Heal, and M17 spells each get distinct cast/projectile/impact animations; downed figures slump.
-- **Loop self-check:** all character/prop assets load via `GLTFLoader` from the manifest (pack-swappable like M8 maps); facing and animation state are renderer-derived from the event log — not one line of core code changed, frozen contract tests untouched; missing models fall back to flagged placeholder boxes per the standing rule.
-- **Stop signal:** "M18 done. Watch a fight and enjoy it — figures face, swing, cast, and fall."
-- **Model:** N/A for asset generation (out-of-loop tools, asset-tool MCPs); standard for loader/animation wiring.
-- **Clarify first:** is facing *mechanical* (rear attacks count as flanking?) or visual-only — if mechanical it's a core rules change that belongs back in M10/M11, decide before building (proposal: visual-only; flanking is already positional); gear-visibility depth (weapon-in-hand only, proposal, vs armor tiers changing the silhouette); art style guide + generation pipeline; animation set per action (one generic cast vs per-spell).
-- **Safe to start:** facing as a renderer concern derived from last move/strike direction (zero core change — could even ship early on the placeholder boxes); manifest plumbing for per-class/per-monster GLB ids; animation-event mapping from the existing combat event log.
+## M23 — Figurines, facing + combat animations *(old M18)*
+**Goal:** the tactical board comes alive — a figurine per hero, soldier, and monster that shows its gear and faces the way it's heading, with real attack and spell animations.
+- **Difficulty:** medium code, heavy asset pipeline — kept late on purpose (art last, behind the seam); gear-reflective looks need M19. Typed troops reuse one model per troop type — the fungible-soldier decision keeps the asset count sane.
+- **You can try:** every combatant is a readable figurine (GLB via Tripo/Meshy) instead of a box; figures face movement and attack targets; the Fighter's looted longbow is visibly in hand; strikes and spells get distinct cast/projectile/impact animations; downed figures slump.
+- **Loop self-check:** all character/prop assets load via `GLTFLoader` from the manifest (pack-swappable like M8 maps); facing and animation state are renderer-derived from the event log — zero core change, frozen contract tests untouched; missing models fall back to flagged placeholder boxes.
+- **Stop signal:** "M23 done. Watch a battle and enjoy it — figures face, swing, cast, and fall."
+- **Model:** N/A for asset generation (out-of-loop tools); standard for loader/animation wiring.
+- **Clarify first:** facing mechanical or visual-only (proposal: visual-only); gear-visibility depth; art style guide + generation pipeline; animation set per action.
+- **Safe to start:** facing as a renderer concern (zero core change — could ship early on boxes); manifest plumbing for per-class/per-troop GLB ids; animation-event mapping from the combat event log.
 
-## M19 — Roster, injuries, rest + recovery
-**Goal:** the Battle Brothers layer — a roster bigger than the deployed four, recruitment at safe havens, lasting injuries, optional permadeath, and a rest/camp system that ties recovery to M13's clock.
-- **Difficulty:** medium. Mostly composition of existing systems (creation flow, campaign clock, slots/HP).
-- **You can try:** hire a recruit at Fishrow Market into a roster of up to ~8 and pick 4 to deploy per fight; a hero downed in battle survives with an injury that needs downtime to heal; resting at a safe haven (or camping on the road, riskier) recovers HP, spell slots, and injury timers — but advances the campaign clock while the enemy moves; an optional permadeath toggle makes downed-and-unrecovered heroes die for good, replaceable only by recruits.
-- **Loop self-check:** roster/deployment/injury state is core campaign data, serialized and replayable; rest rides the campaign clock pipeline from M13; injury effects ride the condition framework from M10; recruitment reuses creation validation; permadeath is a campaign flag with contract tests on both settings.
-- **Stop signal:** "M19 done. Get a hero wounded, bench them to heal, hire and deploy a replacement, and feel the clock cost."
+## M24 — Injuries, rest + the permadeath dial *(old M19; roster absorbed by typed troops)*
+**Goal:** the human cost — lasting injuries on downed heroes, a rest/camp system riding the war turn (replacing the interim safe-haven slot recovery), and optional permadeath. The old roster concept is absorbed: soldiers are typed troops (M13/M15); the heroes remain the only individuals.
+- **Difficulty:** medium. Mostly composition of existing systems (war turns, conditions, slots/HP).
+- **You can try:** a hero downed in a won battle survives with an injury that needs downtime; resting recovers HP, slots, and injury timers — but spends war turns while the factions move; an optional permadeath toggle (campaign start, no mid-run switch) makes lost heroes permanent.
+- **Loop self-check:** injury state is core campaign data, serialized and replayable; rest rides the M13 turn pipeline; injury effects ride the M10 condition framework; permadeath is a campaign flag with contract tests on both settings.
+- **Stop signal:** "M24 done. Get a hero wounded, pay the turns to heal them, and feel the war move while you wait."
 - **Model:** standard.
-- **Clarify first:** permadeath default (proposal: off by default, chosen at campaign start, no mid-run switch); roster cap and hiring cost curve (ties to M14 gold); injury severity model (proposal: 2 tiers — bruised heals on any rest, wounded needs safe-haven downtime); does camping on the road invite ambush encounters?
-- **Safe to start:** rest action recovering HP/slots (slots exist from M9); roster + deployment data model with serialize round-trip; recruitment screen reusing the creation screen.
+- **Clarify first:** permadeath default (proposal: off); injury severity model (proposal: 2 tiers); **can new heroes be recruited to replace or expand the four?** (`DESIGN.md` left this open — under permadeath it decides whether a wipe is truly the only end); does camping invite ambush?
+- **Safe to start:** rest action recovering HP/slots; injury data model with serialize round-trip.
 
-## M20 — QoL: audio, save slots, difficulty + settings
+## M25 — QoL: audio, save slots, difficulty + settings *(old M20)*
 **Goal:** the expected-everywhere layer — music and SFX, multiple saves with autosave, difficulty settings, an options menu.
-- **Difficulty:** low. Deliberately last; every earlier milestone makes its knobs and hooks more meaningful.
-- **You can try:** ambient music per map layer and combat stings, SFX for strikes/spells/UI; three+ save slots plus rotating autosave (on travel and combat end) with load-from-menu; difficulty chosen at campaign start (scales encounter strength and M13 pressure pacing); an options menu with volume sliders, animation-speed toggle, and the permadeath flag from M19.
-- **Loop self-check:** audio assets ride the manifest/content-pack seam (badged placeholders when missing, per the standing rule); save slots wrap the existing campaign serialize (slot management is pure renderer/storage — core unchanged); difficulty is campaign data consumed by encounter building and M13 pacing, contract-tested at each setting; narrator/audio toggles change nothing mechanical.
-- **Stop signal:** "M20 done. Hear it, save in three slots, lose an autosave-recovered fight on hard."
+- **Difficulty:** low. Deliberately last; every earlier milestone makes its knobs more meaningful.
+- **You can try:** ambient music per map layer and combat stings; three+ save slots plus rotating autosave (on turn end and combat end); difficulty chosen at campaign start; an options menu with volume sliders, animation-speed toggle, and the permadeath flag from M24.
+- **Loop self-check:** audio assets ride the manifest/content-pack seam (badged placeholders when missing); save slots wrap the existing campaign serialize (pure renderer/storage); difficulty is campaign data consumed by faction starting strength and heat/escalation pacing, contract-tested at each setting; toggles change nothing mechanical.
+- **Stop signal:** "M25 done. Hear it, save in three slots, lose an autosave-recovered battle on hard."
 - **Model:** standard. Audio *content* is out-of-loop sourcing like art.
-- **Clarify first:** audio sourcing (generated? licensed packs? — budget/taste call); difficulty knobs (proposal: enemy count + strategic-pressure pacing, never flat damage cheats); web-only `localStorage` saves or file export too?
-- **Safe to start:** save-slot management over the existing serialize (could ship today); autosave hooks on travel/combat-end events; options-menu shell. Audio waits on sourcing.
+- **Clarify first:** audio sourcing; difficulty knobs (**proposal per `DESIGN.md`: faction starting positions, heat pacing, escalation rate — never stat cheats**); web-only `localStorage` saves or file export too?
+- **Safe to start:** save-slot management over the existing serialize (could ship today); autosave hooks on turn-end/combat-end events; options-menu shell.
 
 ---
 
