@@ -29,3 +29,48 @@ One reaction per round, refreshed at the start of the entity's own turn.
 - **No multiple attack penalty:** MAP is not yet modeled in core at all, so "doesn't count toward / isn't subject to MAP" is trivially satisfied.
 - **Disruption:** the critical-hit-disrupts-manipulate clause is out of scope (no manipulate trigger). For move triggers, RAW does not disrupt the move: the Strike resolves at the square where it triggers and the movement continues (unless the mover is downed — a downed mover stops at the triggering square).
 - Reaction spend rides the pipeline as an effect so replay holds.
+
+## M12 scope — trigger subset closed at full RAW (2026-06-12)
+
+Closes `m10_aoo_trigger_subset`. The availability house rule (every melee-armed
+combatant threatens) and the once-per-round economy are unchanged; the trigger
+list is now the full RAW sentence, **symmetric** — heroes provoke and react too.
+
+- **Triggers, all live:**
+  1. *Leaves a square during a move action* — shipped in M10, unchanged
+     (RAW does not disrupt the move; a downed mover stops at the trigger square).
+  2. *Makes a ranged attack while within reach* — ranged weapon Strikes and
+     ranged spell attacks made while in a reactor's melee reach.
+  3. *Uses a manipulate action while within reach* — all three shipped spells
+     (Ray of Frost, Heal, Breathe Fire) carry the manipulate trait per their
+     vendored pages; the check is data (`m12-subset.json` `spells.*.traits`),
+     not code.
+  4. *Uses a move action while within reach* — **Stand provokes** (move trait,
+     no exemption). The game's Step move is **exempt from this clause** per the
+     RAW Step rules text (`step.md`) but keeps its M10 leaving-reach trigger,
+     which is the house rule's deliberate disengage zoning. With 1-tile reach
+     the within-reach clause is vacuous for Step anyway; recorded for reach-2
+     weapons (M14+).
+- **Ordering:** the reaction resolves **before** the triggering action's
+  effects. The triggering action's AP (and spell slot, if any) are spent
+  regardless — the action was used; if the reaction downs the actor, the rest
+  of the action is lost. After a reactor downs the actor, remaining reactors do
+  not pile on (M10 pattern: no beating a downed creature).
+- **Disruption (RAW):** if the reaction Strike is a **critical hit** and the
+  trigger was a **manipulate** action, the action is disrupted — the cast's
+  spell effects are dropped, AP and spell slot stay spent, and the disruption
+  is recorded on the reaction's attack resolution (`disruptedCast`) for the
+  combat log. Crit detection reuses the shared degree-of-success ladder
+  (`saving-throws.md`: total ≥ AC + 10, natural 20/1 shift one step) and is
+  used **only** for disruption — critical *damage* (double damage) remains
+  unmodeled game-wide (M1 attack model, unchanged).
+- **Move triggers are never disrupted** even by a crit (move actions are not
+  manipulate): Stand still gets the actor up after eating a crit.
+- **Resolution snapshot simplification:** the resolver computes the whole
+  action from the pre-action state in one pass (M10 pattern), so a condition
+  rider applied by the reaction (e.g. frightened) penalizes the actor's *next*
+  action, not the very roll it interrupted. HP from reaction damage **is**
+  chained (a downed actor loses the action).
+- **Mitigation is deliberately out of scope:** skill/feat counters ("battle
+  casting" / steady-spellcasting-style feats) belong to M15's feat subset.
+

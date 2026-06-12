@@ -1,5 +1,5 @@
-﻿/** Curated M11 rules tables — sourced from rules/srd/m11-subset.json (ORC SRD). */
-import subsetJson from "../../../rules/srd/m11-subset.json";
+﻿/** Curated M12 rules tables — sourced from rules/srd/m12-subset.json (ORC SRD). */
+import subsetJson from "../../../rules/srd/m12-subset.json";
 
 export type ClassId = "fighter" | "rogue" | "wizard" | "cleric";
 export type AbilityId = "str" | "dex" | "con" | "int" | "wis" | "cha";
@@ -70,15 +70,17 @@ export interface ClericClassRules extends ClassRulesBase {
   additionalSkillBase: number;
 }
 
-export const M11_SUBSET = subsetJson;
-/** @deprecated Use M11_SUBSET — alias for transitional imports */
-export const M10_SUBSET = M11_SUBSET;
-/** @deprecated Use M11_SUBSET — alias for transitional imports */
-export const M9_SUBSET = M11_SUBSET;
-/** @deprecated Use M11_SUBSET — alias for transitional imports */
-export const M7_SUBSET = M11_SUBSET;
-/** @deprecated Use M11_SUBSET — alias for transitional imports */
-export const M2_SUBSET = M11_SUBSET;
+export const M12_SUBSET = subsetJson;
+/** @deprecated Use M12_SUBSET — alias for transitional imports */
+export const M11_SUBSET = M12_SUBSET;
+/** @deprecated Use M12_SUBSET — alias for transitional imports */
+export const M10_SUBSET = M12_SUBSET;
+/** @deprecated Use M12_SUBSET — alias for transitional imports */
+export const M9_SUBSET = M12_SUBSET;
+/** @deprecated Use M12_SUBSET — alias for transitional imports */
+export const M7_SUBSET = M12_SUBSET;
+/** @deprecated Use M12_SUBSET — alias for transitional imports */
+export const M2_SUBSET = M12_SUBSET;
 
 export const ABILITY_IDS = M11_SUBSET.abilities as AbilityId[];
 
@@ -120,5 +122,15 @@ export function coneSpellDef(spellId: "breathe_fire") {
 }
 
 export function spellRank(spellId: SpellId): number {
-  return M11_SUBSET.spells[spellId].rank;
+  return M12_SUBSET.spells[spellId].rank;
+}
+
+/** Vendored trait line of a spell (rules/srd/m12-subset.json spells.*.traits). */
+export function spellTraits(spellId: SpellId): readonly string[] {
+  return M12_SUBSET.spells[spellId].traits;
+}
+
+/** Manipulate-trait check — the Reactive Strike trigger and disruption gate (M12). */
+export function spellHasTrait(spellId: SpellId, trait: string): boolean {
+  return spellTraits(spellId).includes(trait);
 }

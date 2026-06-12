@@ -2,8 +2,8 @@
 
 Build progress for EMBERWATCH. Milestone definitions live in `ROADMAP.md`.
 
-**Current milestone:** M12 (not started — M11 accepted). M12 runs as two sessions like M11: Phase A premium scoring framework + behavior contracts (+ RAW AoO trigger closure), Phase B standard-model archetype profiles — session prompts in `NEXT_SESSION.md`. Clarifications resolved 2026-06-12 under M12 in `ROADMAP.md`.  
-**Last updated:** 2026-06-12 — M11 gate 2 accepted (line of sight, cover + friendly fire)
+**Current milestone:** M12 in progress — **Phase A committed** (2026-06-12: utility-scoring AI framework + frozen behavior contracts in `tests/contract/ai-behavior.test.ts`, RAW Reactive Strike trigger closure in `tests/contract/reactions-raw.test.ts`; 280 tests green, build clean). Phase B (standard model: archetype profiles, content wiring, renderer/log/overlay) is next — prompt in `NEXT_SESSION.md`. Gate 2 runs after Phase B. Clarifications resolved 2026-06-12 under M12 in `ROADMAP.md`.  
+**Last updated:** 2026-06-12 — M12 Phase A committed (gate 2 pending after Phase B)
 
 ---
 

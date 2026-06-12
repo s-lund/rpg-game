@@ -42,6 +42,19 @@ export function rollSave(rng: Rng, saveModifier: number, dc: number): SaveRoll {
   return { d20Natural, saveTotal, outcome: degreeOfSuccess(d20Natural, saveTotal, dc) };
 }
 
+/**
+ * Mean basic-save damage multiplier over a uniform d20 (crit success ×0,
+ * success ×0.5, failure ×1, crit failure ×2) — the shared expected-value
+ * helper the M12 AI scorers use for save-based spells.
+ */
+export function expectedBasicSaveFactor(saveModifier: number, dc: number): number {
+  let total = 0;
+  for (let face = 1; face <= 20; face++) {
+    total += basicSaveDamage(2, degreeOfSuccess(face, face + saveModifier, dc)) / 2;
+  }
+  return total / 20;
+}
+
 /** Chance (5–95%) the save lands on success or better — for the hover inspector. */
 export function estimateSavePercent(saveModifier: number, dc: number): number {
   const needed = dc - saveModifier;

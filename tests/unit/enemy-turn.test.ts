@@ -75,8 +75,9 @@ describe("enemy turn AI", () => {
     const action = chooseEnemyAction(state, "ent_goblin_01");
     expect(action?.kind).toBe("Step");
     if (action?.kind === "Step") {
-      expect(action.x).toBe(6);
-      expect(action.y).toBe(5);
+      // M12 utility AI closes to striking adjacency in one move (3 AP from
+      // (5,5) toward (8,5)), keeping AP for the follow-up strike.
+      expect(Math.abs(action.x - 8) + Math.abs(action.y - 5)).toBe(1);
     }
   });
 

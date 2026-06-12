@@ -6,7 +6,7 @@ import type { Rng } from "../rng";
 import { attackHits } from "../combat/attack";
 import { effectiveAc, isFlanking } from "../combat/flanking";
 import { canTargetAlly, canTargetEnemy, isInRange } from "../combat/range";
-import { isAdjacent, isInBounds, isTileBlocked, isTileOccupied } from "../combat/grid";
+import { isInBounds, isTileBlocked, isTileOccupied } from "../combat/grid";
 import { findStepPath } from "../combat/path";
 import { coneTiles } from "../combat/cone";
 import {
@@ -16,7 +16,8 @@ import {
   hasLineOfEffect,
 } from "../combat/los";
 import { adjustDamage } from "../combat/damage";
-import { basicSaveDamage, rollSave } from "../combat/save";
+import { basicSaveDamage, degreeOfSuccess, rollSave } from "../combat/save";
+import { isManipulateSpell, meleeReactorsInReach, moveReactionTriggers } from "../combat/reactions";
 import {
   PERSISTENT_DAMAGE_FLAT_CHECK_DC,
   attackRollPenalty,
@@ -72,7 +73,7 @@ export function resolveAction(action: Action, state: GameState, rng: Rng): Resol
     case "CastConeSpell":
       return resolveCastConeSpell(action, state, rng);
     case "Stand":
-      return resolveStand(action, state);
+      return resolveStand(action, state, rng);
     case "EndTurn":
       return resolveEndTurn(action, state, rng);
   }
@@ -82,8 +83,9 @@ export function resolveAction(action: Action, state: GameState, rng: Rng): Resol
  * Slot enforcement is opt-in (rules/srd/spell-slots.md): entities without a
  * spellSlots pool cast unrestricted (frozen M7 contracts). Cantrips never
  * consume slots. Font slots are spent before regular ones.
+ * Exported for the M12 AI cast generator — same legality source as the resolver.
  */
-function findSlotToSpend(actor: Entity, spellId: SpellId): { slotId: string } | "none" | null {
+export function findSlotToSpend(actor: Entity, spellId: SpellId): { slotId: string } | "none" | null {
   if (!actor.spellSlots || spellRank(spellId) === 0) return null;
   const candidates = actor.spellSlots.filter(
     (slot) => !slot.expended && slot.preparedSpellId === spellId,
@@ -94,47 +96,11 @@ function findSlotToSpend(actor: Entity, spellId: SpellId): { slotId: string } | 
 }
 
 /**
- * Reactive Strike triggers along a move path (rules/srd/reactive-strike.md,
- * HOUSE RULE: every melee-armed combatant threatens). The trigger is leaving
- * the reactor's reach: position i adjacent to the reactor, position i+1 not.
- * Returns each ready reactor's first trigger, ordered by path position.
- */
-function findReactionTriggers(
-  state: GameState,
-  moverId: EntityId,
-  fullPath: { x: number; y: number }[],
-): { reactor: Entity; triggerIndex: number }[] {
-  const mover = state.entities[moverId]!;
-  const triggers: { reactor: Entity; triggerIndex: number }[] = [];
-
-  for (const reactor of Object.values(state.entities)) {
-    if (reactor.id === moverId || reactor.team === mover.team) continue;
-    if (reactor.downed || !reactor.reactionAvailable) continue;
-    if (reactor.strikeRange !== 1) continue; // melee weapon holders only
-
-    for (let i = 0; i + 1 < fullPath.length; i++) {
-      const at = fullPath[i]!;
-      const next = fullPath[i + 1]!;
-      if (
-        isAdjacent(reactor.x, reactor.y, at.x, at.y) &&
-        !isAdjacent(reactor.x, reactor.y, next.x, next.y)
-      ) {
-        triggers.push({ reactor, triggerIndex: i });
-        break; // one reaction per reactor
-      }
-    }
-  }
-
-  return triggers.sort(
-    (a, b) => a.triggerIndex - b.triggerIndex || a.reactor.id.localeCompare(b.reactor.id),
-  );
-}
-
-/**
- * A Reactive Strike: a normal melee Strike against the mover at its trigger
- * square — same attack/damage/adjustment math as resolveStrike, no flanking
- * (the reactor strikes alone, mid-move). Returns the effects and whether the
- * mover went down (which stops the move at the trigger square).
+ * A Reactive Strike: a normal melee Strike against the triggering actor —
+ * same attack/damage/adjustment math as resolveStrike, no flanking (the
+ * reactor strikes alone, mid-action). Returns the effects, the actor's HP
+ * after, and whether the strike was a critical hit (M12: a crit disrupts a
+ * manipulate-trait trigger — `disruptableCast` marks the resolution when so).
  */
 function reactionStrikeEffects(
   state: GameState,
@@ -143,7 +109,8 @@ function reactionStrikeEffects(
   moverHp: number,
   rng: Rng,
   actionId: string,
-): { effects: AnyEffect[]; moverHpAfter: number } {
+  disruptableCast?: { spellId: SpellId; spellLabel: string },
+): { effects: AnyEffect[]; moverHpAfter: number; crit: boolean } {
   const effects: AnyEffect[] = [
     {
       kind: "SpendReaction",
@@ -178,8 +145,12 @@ function reactionStrikeEffects(
         reactionBy,
       },
     });
-    return { effects, moverHpAfter: moverHp };
+    return { effects, moverHpAfter: moverHp, crit: false };
   }
+
+  // Crit detection (M12): shared degree-of-success ladder, used ONLY to gate
+  // manipulate disruption — crit double damage stays unmodeled (M1 attack model).
+  const crit = degreeOfSuccess(d20Natural, attackTotal, targetAc) === "critSuccess";
 
   const damageRolls = rollDice(rng, reactor.damage.count, reactor.damage.sides);
   let damage = sumDice(damageRolls, reactor.damage.modifier);
@@ -205,6 +176,7 @@ function reactionStrikeEffects(
       damageRolls,
       damageModifier: reactor.damage.modifier,
       reactionBy,
+      ...(crit && disruptableCast ? { disruptedCast: { ...disruptableCast } } : {}),
     },
     ...(adjustment ? { damageAdjustment: adjustment } : {}),
   });
@@ -223,7 +195,48 @@ function reactionStrikeEffects(
     );
   }
 
-  return { effects, moverHpAfter };
+  return { effects, moverHpAfter, crit };
+}
+
+/**
+ * In-reach Reactive Strikes against the actor (M12 triggers: ranged attack,
+ * manipulate action, Stand — rules/srd/reactive-strike.md). Reactions resolve
+ * BEFORE the triggering action's effects; a downed actor loses the action and
+ * stops further reactors (M10 pattern). `disruptableCast` set → a critical
+ * reaction disrupts the cast.
+ */
+function inReachReactionEffects(
+  state: GameState,
+  actor: Entity,
+  rng: Rng,
+  actionId: string,
+  disruptableCast?: { spellId: SpellId; spellLabel: string },
+): { effects: AnyEffect[]; actorDowned: boolean; disrupted: boolean } {
+  const effects: AnyEffect[] = [];
+  let actorHp = actor.hp;
+  let disrupted = false;
+
+  for (const reactor of meleeReactorsInReach(state, actor.id)) {
+    const reaction = reactionStrikeEffects(
+      state,
+      reactor,
+      actor,
+      actorHp,
+      rng,
+      actionId,
+      disrupted ? undefined : disruptableCast,
+    );
+    effects.push(...reaction.effects);
+    actorHp = reaction.moverHpAfter;
+    if (reaction.crit && disruptableCast) {
+      disrupted = true;
+    }
+    if (actorHp === 0) {
+      return { effects, actorDowned: true, disrupted };
+    }
+  }
+
+  return { effects, actorDowned: false, disrupted };
 }
 
 function applyConditionEffect(
@@ -290,7 +303,7 @@ function resolveStep(
   // a downed mover stops there, otherwise the move completes (RAW: a move
   // trigger is not disrupted by the Strike).
   const fullPath = [{ x: actor.x, y: actor.y }, ...path];
-  const triggers = findReactionTriggers(state, action.actorId, fullPath);
+  const triggers = moveReactionTriggers(state, action.actorId, fullPath);
   let moverHp = actor.hp;
   for (const { reactor, triggerIndex } of triggers) {
     const triggerPos = fullPath[triggerIndex]!;
@@ -320,10 +333,15 @@ function resolveStep(
   return { effects };
 }
 
-/** Stand (1 action) ends prone (rules/srd/conditions-m10.md). */
+/**
+ * Stand (1 action) ends prone (rules/srd/conditions-m10.md). Stand is a move
+ * action used within reach, so it provokes Reactive Strikes (M12); a move
+ * trigger is never disrupted — a surviving actor stands even after a crit.
+ */
 function resolveStand(
   action: Extract<Action, { kind: "Stand" }>,
   state: GameState,
+  rng: Rng,
 ): ResolveResult {
   const actor = state.entities[action.actorId];
   if (!actor || actor.downed) {
@@ -342,22 +360,28 @@ function resolveStand(
     return { effects: [] };
   }
 
-  return {
-    effects: [
-      {
-        kind: "SpendActionPoints",
-        effectId: `${action.actionId}_ap`,
-        entityId: action.actorId,
-        amount: 1,
-      },
-      {
-        kind: "RemoveCondition",
-        effectId: `${action.actionId}_stand`,
-        targetId: action.actorId,
-        condition: "prone",
-      },
-    ],
-  };
+  const effects: AnyEffect[] = [
+    {
+      kind: "SpendActionPoints",
+      effectId: `${action.actionId}_ap`,
+      entityId: action.actorId,
+      amount: 1,
+    },
+  ];
+
+  const reactions = inReachReactionEffects(state, actor, rng, action.actionId);
+  effects.push(...reactions.effects);
+  if (reactions.actorDowned) {
+    return { effects };
+  }
+
+  effects.push({
+    kind: "RemoveCondition",
+    effectId: `${action.actionId}_stand`,
+    targetId: action.actorId,
+    condition: "prone",
+  });
+  return { effects };
 }
 
 function resolveStrike(
@@ -405,6 +429,17 @@ function resolveStrike(
       amount: 1,
     },
   ];
+
+  // A ranged attack made within a reactor's reach provokes (M12 RAW trigger);
+  // the reaction resolves first, and a downed shooter loses the shot. Melee
+  // Strikes never provoke.
+  if (actor.strikeRange > 1) {
+    const reactions = inReachReactionEffects(state, actor, rng, action.actionId);
+    effects.push(...reactions.effects);
+    if (reactions.actorDowned) {
+      return { effects };
+    }
+  }
 
   const adjacent = isInRange(actor, target.x, target.y, 1);
   const flanking = adjacent && isFlanking(state, action.actorId, action.targetId);
@@ -564,6 +599,21 @@ function resolveCastSpell(
     },
   ];
 
+  // Casting in reach provokes (manipulate trait — and a ranged spell attack
+  // besides; one reaction either way). A crit disrupts the cast: AP stays
+  // spent, the spell effects are dropped. A downed caster never casts.
+  const reactions = inReachReactionEffects(
+    state,
+    actor,
+    rng,
+    action.actionId,
+    isManipulateSpell(action.spellId) ? { spellId: action.spellId, spellLabel: spell.label } : undefined,
+  );
+  effects.push(...reactions.effects);
+  if (reactions.actorDowned || reactions.disrupted) {
+    return { effects };
+  }
+
   const d20Natural = rng.d20();
   const effectiveSpellBonus = actor.spellAttackBonus - attackRollPenalty(actor);
   const attackTotal = d20Natural + effectiveSpellBonus;
@@ -683,41 +733,53 @@ function resolveCastHeal(
     return { effects: [] };
   }
 
+  const effects: AnyEffect[] = [
+    {
+      kind: "SpendActionPoints",
+      effectId: `${action.actionId}_ap`,
+      entityId: action.actorId,
+      amount: spell.actionCost,
+    },
+  ];
+  if (slot) {
+    effects.push({
+      kind: "SpendSpellSlot",
+      effectId: `${action.actionId}_slot`,
+      entityId: action.actorId,
+      slotId: slot.slotId,
+    });
+  }
+
+  // Heal carries manipulate — casting it in reach provokes even when the
+  // target is the caster or an ally; a crit disrupts (AP and slot stay spent).
+  const reactions = inReachReactionEffects(
+    state,
+    actor,
+    rng,
+    action.actionId,
+    isManipulateSpell(action.spellId) ? { spellId: action.spellId, spellLabel: spell.label } : undefined,
+  );
+  effects.push(...reactions.effects);
+  if (reactions.actorDowned || reactions.disrupted) {
+    return { effects };
+  }
+
   const healRolls = rollDice(rng, spell.heal.count, spell.heal.sides);
   const rolled = sumDice(healRolls, spell.heal.flatBonus);
   const amount = Math.min(rolled, target.maxHp - target.hp);
 
-  return {
-    effects: [
-      {
-        kind: "SpendActionPoints",
-        effectId: `${action.actionId}_ap`,
-        entityId: action.actorId,
-        amount: spell.actionCost,
-      },
-      ...(slot
-        ? [
-            {
-              kind: "SpendSpellSlot",
-              effectId: `${action.actionId}_slot`,
-              entityId: action.actorId,
-              slotId: slot.slotId,
-            } satisfies AnyEffect,
-          ]
-        : []),
-      {
-        kind: "Heal",
-        effectId: `${action.actionId}_heal`,
-        targetId: action.targetId,
-        amount,
-        healResolution: {
-          spellLabel: spell.label,
-          healRolls,
-          flatBonus: spell.heal.flatBonus,
-        },
-      },
-    ],
-  };
+  effects.push({
+    kind: "Heal",
+    effectId: `${action.actionId}_heal`,
+    targetId: action.targetId,
+    amount,
+    healResolution: {
+      spellLabel: spell.label,
+      healRolls,
+      flatBonus: spell.heal.flatBonus,
+    },
+  });
+  return { effects };
 }
 
 /** Breathe Fire — cone, basic Reflex save, friendly fire per RAW (rules/srd/spell-breathe-fire.md). */
@@ -781,6 +843,20 @@ function resolveCastConeSpell(
       entityId: action.actorId,
       slotId: slot.slotId,
     });
+  }
+
+  // Breathe Fire carries manipulate — casting in reach provokes; a crit
+  // disrupts the cast (AP and slot stay spent, no cone resolves).
+  const reactions = inReachReactionEffects(
+    state,
+    actor,
+    rng,
+    action.actionId,
+    isManipulateSpell(action.spellId) ? { spellId: action.spellId, spellLabel: spell.label } : undefined,
+  );
+  effects.push(...reactions.effects);
+  if (reactions.actorDowned || reactions.disrupted) {
+    return { effects };
   }
 
   // One damage roll for all targets; each creature in the area saves on its own.

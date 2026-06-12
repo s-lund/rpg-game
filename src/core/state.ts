@@ -36,6 +36,7 @@ function blueprintToEntity(blueprint: EntityBlueprint, team: Entity["team"]): En
     activeConditions: [],
     reactionAvailable: !downed,
     ...(blueprint.onHitCondition ? { onHitCondition: { ...blueprint.onHitCondition } } : {}),
+    ...(blueprint.aiProfileId ? { aiProfileId: blueprint.aiProfileId } : {}),
     actionPoints: downed ? 0 : DEFAULT_ACTION_POINTS,
     maxActionPoints: DEFAULT_ACTION_POINTS,
     downed,

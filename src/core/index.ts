@@ -128,6 +128,7 @@ export type { CharacterDraft, PartyDraft, ValidationResult } from "./characters/
 export type { AbilityId, ClassId as CharacterClassId, SkillId } from "./characters/subset";
 export {
   ABILITY_IDS,
+  M12_SUBSET,
   M9_SUBSET,
   M7_SUBSET,
   M2_SUBSET,
@@ -139,6 +140,8 @@ export {
   spellDef,
   coneSpellDef,
   spellRank,
+  spellTraits,
+  spellHasTrait,
   type SpellId,
 } from "./characters/subset";
 export {
@@ -195,7 +198,13 @@ export {
 export { tileDistance, isInRange, canTargetEnemy, canTargetAlly } from "./combat/range";
 export { inspectTarget, type TargetInspection, type InspectActionKind } from "./combat/inspect";
 export { attackHits, estimateHitPercent, damageBand } from "./combat/attack";
-export { degreeOfSuccess, basicSaveDamage, rollSave, estimateSavePercent } from "./combat/save";
+export {
+  degreeOfSuccess,
+  basicSaveDamage,
+  rollSave,
+  estimateSavePercent,
+  expectedBasicSaveFactor,
+} from "./combat/save";
 export {
   PERSISTENT_DAMAGE_FLAT_CHECK_DC,
   conditionValue,
@@ -226,8 +235,30 @@ export {
   type CoverSource,
   type CoverResult,
 } from "./combat/los";
-export { findStepPath } from "./combat/path";
+export {
+  findStepPath,
+  isTilePassable,
+  reachableStepTargets,
+  type ReachableStepTarget,
+} from "./combat/path";
+export {
+  canReact,
+  meleeReactorsInReach,
+  moveReactionTriggers,
+  isManipulateSpell,
+} from "./combat/reactions";
 export { chooseEnemyAction } from "./ai/enemy-turn";
+export { chooseAiAction, enumerateAiCandidates, type ScoredAiCandidate } from "./ai/choose";
+export { perceivableTargets } from "./ai/perception";
+export {
+  AI_PROFILES,
+  BASELINE_PROFILE,
+  resolveAiProfile,
+  type AiProfile,
+  type AiRetreat,
+  type AiWeights,
+} from "./ai/profile";
+export type { ActionFamily, AiCandidate, AiContext } from "./ai/context";
 
 export type { Rng } from "./rng";
 export { createDefaultRng, createSeededRng } from "./rng";

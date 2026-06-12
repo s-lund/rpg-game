@@ -1,0 +1,261 @@
+{
+  "version": "m12",
+  "source": "Pathfinder Player Core (ORC) — curated L1 party subset",
+  "cover": {
+    "tiers": {
+      "lesser": { "label": "Lesser Cover", "acBonus": 1, "reflexVsAreaBonus": 0, "stealthBonus": 0, "canHide": false },
+      "standard": { "label": "Standard Cover", "acBonus": 2, "reflexVsAreaBonus": 2, "stealthBonus": 2, "canHide": true },
+      "greater": { "label": "Greater Cover", "acBonus": 4, "reflexVsAreaBonus": 4, "stealthBonus": 4, "canHide": true, "note": "NOT implemented in M11 — vendored for completeness; needs Take Cover (M20 settings era or later)." }
+    },
+    "sources": {
+      "creatureInCenterLine": "lesser",
+      "raisedPropInCenterLine": "standard",
+      "wallPartialCornerOcclusion": "standard",
+      "wallFullCornerOcclusion": "noLineOfEffect"
+    },
+    "srdRef": "rules/srd/cover.md"
+  },
+  "lineOfEffect": {
+    "blocksTargeting": true,
+    "clipsAreaEffects": true,
+    "srdRef": "rules/srd/line-of-effect.md"
+  },
+  "initiative": {
+    "check": "perception",
+    "ability": "wis",
+    "tieBreak": "enemyFirst",
+    "srdRef": "rules/srd/initiative.md"
+  },
+  "conditions": {
+    "frightened": { "label": "Frightened", "hasValue": true, "statusPenaltyToChecksAndDcs": true, "decrementAtEndOfTurn": 1, "srdRef": "rules/srd/conditions-m10.md" },
+    "prone": { "label": "Prone", "hasValue": false, "grantsFlatFooted": true, "attackCircumstancePenalty": -2, "standActionCost": 1, "srdRef": "rules/srd/conditions-m10.md" },
+    "stunned": { "label": "Stunned", "hasValue": true, "reducesActionsRegained": true, "overridesSlowed": true, "srdRef": "rules/srd/conditions-m10.md" },
+    "slowed": { "label": "Slowed", "hasValue": true, "reducesActionsRegained": true, "srdRef": "rules/srd/conditions-m10.md" },
+    "persistent_damage": { "label": "Persistent Damage", "typed": true, "ticksAtEndOfTurn": true, "flatCheckDc": 15, "srdRef": "rules/srd/conditions-m10.md" }
+  },
+  "actionsPerTurn": 3,
+  "reactionsPerTurn": 1,
+  "houseRules": {
+    "cornerCover": {
+      "note": "DERIVATION (2026-06-12): wall cover is corner-occlusion sampled (attacker's best corner vs the target tile's 4 corners) instead of RAW center-line + GM adjudication. All rays blocked = no line of effect; some = standard cover; none = open. Raised props below the wall threshold are objects (standard cover, never block targeting); flat blocked tiles (water/chasm) grant nothing. See rules/srd/cover.md.",
+      "wallRaisedThreshold": 0.7,
+      "srdRef": "rules/srd/cover.md"
+    },
+    "reactiveStrike": {
+      "note": "HOUSE RULE (2026-06-11): every combatant holding a melee weapon gets the Reactive Strike reaction (RAW: Fighter feature). M12 (2026-06-12): trigger list closed at full RAW — see reactive-strike.md M12 scope. Critical hits disrupt manipulate actions: the cast is lost, AP and spell slot stay spent. Step does not trigger reactions (rules/srd/step.md). One reaction per round per RAW.",
+      "availability": "melee_weapon_holders",
+      "triggers": ["leaves_reach_during_move", "ranged_attack_in_reach", "manipulate_action_in_reach", "move_action_in_reach"],
+      "stepExempt": true,
+      "critDisruptsManipulate": true,
+      "srdRef": "rules/srd/reactive-strike.md"
+    },
+    "playtestHpCushion": {
+      "note": "HOUSE RULE (2026-06-11): flat bonus HP for heroes so universal AoO + enemy conditions are playtestable without instant wipes. PROCEDURAL, flagged in overlay; superseded by M15 leveling. M12: STAYS — the punishing AI lands before M15 leveling, the cushion is what keeps it survivable.",
+      "heroBonusHp": 10
+    }
+  },
+  "abilityPointBuy": {
+    "baseScore": 10,
+    "pointPool": 18,
+    "minScore": 8,
+    "maxScore": 18,
+    "srdRef": "rules/srd/ability-scores.md"
+  },
+  "abilities": ["str", "dex", "con", "int", "wis", "cha"],
+  "skillLabels": {
+    "acrobatics": "Acrobatics",
+    "athletics": "Athletics",
+    "crafting": "Crafting",
+    "deception": "Deception",
+    "diplomacy": "Diplomacy",
+    "intimidation": "Intimidation",
+    "medicine": "Medicine",
+    "stealth": "Stealth",
+    "survival": "Survival",
+    "thievery": "Thievery"
+  },
+  "fixedAncestry": {
+    "id": "human",
+    "label": "Human (M7 default)",
+    "hpBonus": 0,
+    "srdRef": "rules/srd/ancestry-human.md"
+  },
+  "fixedBackground": {
+    "fighter": { "id": "warrior", "label": "Warrior (M7 default)", "srdRef": "rules/srd/background-warrior.md" },
+    "rogue": { "id": "criminal", "label": "Criminal (M7 default)", "srdRef": "rules/srd/background-criminal.md" },
+    "wizard": { "id": "scholar", "label": "Scholar (M7 default)", "srdRef": "rules/srd/background-scholar.md" },
+    "cleric": { "id": "acolyte", "label": "Acolyte (M7 default)", "srdRef": "rules/srd/background-acolyte.md" }
+  },
+  "level": 1,
+  "proficiencyBonus": {
+    "untrained": 0,
+    "trained": 2,
+    "expert": 4,
+    "master": 6,
+    "legendary": 8
+  },
+  "rangeTilesPer30Feet": 1,
+  "saveAbilities": {
+    "fortitude": "con",
+    "reflex": "dex",
+    "will": "wis"
+  },
+  "spells": {
+    "ray_of_frost": {
+      "label": "Ray of Frost",
+      "rank": 0,
+      "actionCost": 2,
+      "rangeTiles": 6,
+      "damage": { "count": 2, "sides": 4 },
+      "damageType": "cold",
+      "traits": ["attack", "cantrip", "cold", "concentrate", "manipulate"],
+      "srdRef": "rules/srd/spell-ray-of-frost.md"
+    },
+    "heal_ranged": {
+      "label": "Heal",
+      "rank": 1,
+      "actionCost": 2,
+      "rangeTiles": 6,
+      "heal": { "count": 1, "sides": 8, "flatBonus": 8 },
+      "traits": ["concentrate", "healing", "manipulate", "vitality"],
+      "srdRef": "rules/srd/spell-heal.md"
+    },
+    "breathe_fire": {
+      "label": "Breathe Fire",
+      "rank": 1,
+      "actionCost": 2,
+      "coneLengthTiles": 3,
+      "damage": { "count": 2, "sides": 6 },
+      "damageType": "fire",
+      "save": "reflex",
+      "traits": ["concentrate", "fire", "manipulate"],
+      "srdRef": "rules/srd/spell-breathe-fire.md"
+    }
+  },
+  "classes": {
+    "fighter": {
+      "label": "Fighter (Archer)",
+      "keyAbilities": ["str", "dex"],
+      "hpPerLevel": 10,
+      "attackProficiency": "expert",
+      "weaponAttackAbility": "dex",
+      "saves": { "fortitude": "expert", "reflex": "expert", "will": "trained" },
+      "perception": "expert",
+      "defaultWeapon": {
+        "label": "shortbow",
+        "damage": { "count": 1, "sides": 6 },
+        "damageAbility": "dex",
+        "damageType": "piercing",
+        "maxRangeTiles": 6
+      },
+      "armor": {
+        "label": "leather_armor",
+        "acBonus": 2,
+        "maxDexBonus": 5,
+        "shieldBonus": 0
+      },
+      "requiredSkillOptions": ["acrobatics", "athletics"],
+      "requiredSkillPick": 1,
+      "additionalSkillBase": 3,
+      "skillChoices": ["acrobatics", "athletics", "crafting", "intimidation", "medicine", "survival"],
+      "srdRef": "rules/srd/classes-fighter.md"
+    },
+    "rogue": {
+      "label": "Rogue",
+      "keyAbilities": ["dex"],
+      "hpPerLevel": 8,
+      "attackProficiency": "trained",
+      "weaponAttackAbility": "dex",
+      "saves": { "fortitude": "trained", "reflex": "expert", "will": "expert" },
+      "perception": "expert",
+      "defaultWeapon": {
+        "label": "shortsword",
+        "damage": { "count": 1, "sides": 6 },
+        "damageAbility": "dex",
+        "damageType": "slashing",
+        "maxRangeTiles": 1
+      },
+      "armor": {
+        "label": "leather_armor",
+        "acBonus": 2,
+        "maxDexBonus": 5,
+        "shieldBonus": 0
+      },
+      "mandatoryTrainedSkills": ["stealth"],
+      "additionalSkillBase": 7,
+      "skillChoices": ["acrobatics", "athletics", "crafting", "deception", "diplomacy", "intimidation", "medicine", "stealth", "survival", "thievery"],
+      "sneakAttack": { "count": 1, "sides": 6 },
+      "srdRef": "rules/srd/classes-rogue.md"
+    },
+    "wizard": {
+      "label": "Wizard",
+      "keyAbilities": ["int"],
+      "hpPerLevel": 6,
+      "spellAttackProficiency": "trained",
+      "spellDcProficiency": "trained",
+      "spellcastingAbility": "int",
+      "saves": { "fortitude": "trained", "reflex": "trained", "will": "expert" },
+      "perception": "trained",
+      "knownSpells": ["ray_of_frost", "breathe_fire"],
+      "spellSlots": { "rank1": 2, "preparedSpellId": "breathe_fire", "srdRef": "rules/srd/spell-slots.md" },
+      "armor": {
+        "label": "unarmored",
+        "acBonus": 0,
+        "maxDexBonus": 99,
+        "shieldBonus": 0
+      },
+      "additionalSkillBase": 2,
+      "skillChoices": ["crafting", "deception", "diplomacy", "intimidation", "medicine", "stealth", "survival"],
+      "srdRef": "rules/srd/classes-wizard.md"
+    },
+    "cleric": {
+      "label": "Cleric",
+      "keyAbilities": ["wis"],
+      "hpPerLevel": 8,
+      "spellDcProficiency": "trained",
+      "spellcastingAbility": "wis",
+      "saves": { "fortitude": "trained", "reflex": "trained", "will": "expert" },
+      "perception": "trained",
+      "knownSpells": ["heal_ranged"],
+      "spellSlots": { "rank1": 2, "preparedSpellId": "heal_ranged", "srdRef": "rules/srd/spell-slots.md" },
+      "divineFont": { "slots": 4, "spellId": "heal_ranged", "srdRef": "rules/srd/cleric-divine-font.md" },
+      "armor": {
+        "label": "leather_armor",
+        "acBonus": 2,
+        "maxDexBonus": 5,
+        "shieldBonus": 0
+      },
+      "additionalSkillBase": 2,
+      "skillChoices": ["diplomacy", "intimidation", "medicine", "survival", "crafting"],
+      "srdRef": "rules/srd/classes-cleric.md"
+    }
+  },
+  "partySlots": [
+    { "slotId": "slot_fighter", "classId": "fighter", "defaultEntityId": "ent_fighter_01", "spawn": { "x": 1, "y": 5 } },
+    { "slotId": "slot_rogue", "classId": "rogue", "defaultEntityId": "ent_rogue_01", "spawn": { "x": 2, "y": 5 } },
+    { "slotId": "slot_wizard", "classId": "wizard", "defaultEntityId": "ent_wizard_01", "spawn": { "x": 3, "y": 5 } },
+    { "slotId": "slot_cleric", "classId": "cleric", "defaultEntityId": "ent_cleric_01", "spawn": { "x": 4, "y": 5 } }
+  ],
+  "defaults": {
+    "fighter": {
+      "name": "Fighter",
+      "abilities": { "str": 14, "dex": 18, "con": 14, "int": 10, "wis": 12, "cha": 8 },
+      "trainedSkills": ["acrobatics", "intimidation", "medicine", "survival"]
+    },
+    "rogue": {
+      "name": "Rogue",
+      "abilities": { "str": 10, "dex": 18, "con": 14, "int": 12, "wis": 8, "cha": 16 },
+      "trainedSkills": ["stealth", "thievery", "deception", "acrobatics", "diplomacy", "intimidation", "athletics", "survival", "medicine"]
+    },
+    "wizard": {
+      "name": "Wizard",
+      "abilities": { "str": 8, "dex": 14, "con": 12, "int": 18, "wis": 10, "cha": 10 },
+      "trainedSkills": ["crafting", "deception", "diplomacy", "intimidation", "medicine", "survival"]
+    },
+    "cleric": {
+      "name": "Cleric",
+      "abilities": { "str": 10, "dex": 10, "con": 14, "int": 10, "wis": 18, "cha": 12 },
+      "trainedSkills": ["medicine", "diplomacy"]
+    }
+  }
+}

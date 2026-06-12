@@ -54,6 +54,12 @@ export interface AttackResolution {
   sneakRolls?: number[];
   /** Set when this strike is a Reactive Strike (AoO) — surfaces the reactor. */
   reactionBy?: { reactorId: EntityId; reactorLabel: string };
+  /**
+   * Set on a critical reaction Strike that disrupted a manipulate-trait cast
+   * (M12, rules/srd/reactive-strike.md): the cast's spell effects were dropped,
+   * its AP and slot stay spent. Log-only — replay needs no extra handling.
+   */
+  disruptedCast?: { spellId: SpellId; spellLabel: string };
 }
 
 export interface HealResolution {
@@ -138,6 +144,8 @@ export interface Entity {
   actionPoints: number;
   maxActionPoints: number;
   downed: boolean;
+  /** M12 tactical-AI profile id (src/core/ai/profile.ts). Absent → "baseline". */
+  aiProfileId?: string;
 }
 
 /** Recorded initiative roll — stored on initial state so replay needs no events. */
@@ -210,6 +218,8 @@ export interface EntityBlueprint {
   /** Perception-based initiative modifier (rules/srd/initiative.md). Default 0. */
   initiativeModifier?: number;
   onHitCondition?: Entity["onHitCondition"];
+  /** M12 tactical-AI profile id (src/core/ai/profile.ts). Absent → "baseline". */
+  aiProfileId?: string;
 }
 
 export interface InitialStateConfig {
