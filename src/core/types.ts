@@ -157,6 +157,13 @@ export interface MapGrid {
   height: number;
   /** Impassable tiles (walls, water, chasms) from the battle map; absent → all tiles open. */
   blocked?: { x: number; y: number }[];
+  /**
+   * M11 per-tile cover semantics (rules/srd/cover.md): "wall" tiles block line
+   * of effect via corner sampling; "raised" props grant standard cover and never
+   * block targeting. Flat hazards (water, chasms) are omitted — impassable but
+   * no cover. Absent (legacy maps) → every `blocked` tile is treated as a wall.
+   */
+  cover?: { x: number; y: number; kind: "wall" | "raised" }[];
 }
 
 export interface GameState {

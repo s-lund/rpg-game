@@ -211,6 +211,21 @@ export {
 } from "./combat/conditions";
 export { adjustDamage, adjustedAmount } from "./combat/damage";
 export { coneTiles, coneDirection, isTileInCone } from "./combat/cone";
+export {
+  WALL_RAISED_THRESHOLD,
+  coverKindFromTileStyle,
+  tileCoverKind,
+  hasLineOfEffect,
+  evaluateCover,
+  coverAcBonus,
+  coverReflexVsAreaBonus,
+  clipTilesByLineOfEffect,
+  coneTilesWithLineOfEffect,
+  type TileCoverKind,
+  type CoverTier,
+  type CoverSource,
+  type CoverResult,
+} from "./combat/los";
 export { findStepPath } from "./combat/path";
 export { chooseEnemyAction } from "./ai/enemy-turn";
 

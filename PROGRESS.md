@@ -2,8 +2,8 @@
 
 Build progress for EMBERWATCH. Milestone definitions live in `ROADMAP.md`.
 
-**Current milestone:** M11 (not started — M10 accepted). M11 runs as two sessions: Phase A premium geometry contract, Phase B standard-model wiring — session prompts in `NEXT_SESSION.md`.  
-**Last updated:** 2026-06-12 — M10 gate 2 accepted (initiative, reactions + conditions)
+**Current milestone:** M11 — Phase A (premium geometry contract) done 2026-06-12; Phase B (standard-model wiring/content/renderer) pending, prompt in `NEXT_SESSION.md`. Gate 2 still open — nothing is visible in-game yet by design.  
+**Last updated:** 2026-06-12 — M11 Phase A committed (LoS/cover geometry contract, 246 tests)
 
 ---
 
